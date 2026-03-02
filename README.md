@@ -20,6 +20,11 @@ Cursor IDE 账户与 Machine ID 管理工具，免安装单文件运行，单实
 - 导入导出账户，批量刷新
 - 标签分组，按标签和订阅类型动态筛选
 
+### 无感换号（Seamless）
+- 在 Cursor 内部一键切换账户，无需手动退出 / 重新登录
+- 通过悬浮按钮打开账号选择器，可按订阅类型、标签筛选账户
+- 本地 HTTP 服务仅监听 `127.0.0.1`，用于在不重启 Cursor 的前提下更新 Token 与 Machine ID
+
 ### 使用量统计
 - 查看账户用量、消费明细、模型调用记录
 - 支持聚合用量、用户分析、事件明细
@@ -29,6 +34,28 @@ Cursor IDE 账户与 Machine ID 管理工具，免安装单文件运行，单实
 - 打开 Cursor 主页（内置浏览器，自动注入 Cookie 登录）
 - 注销 Cursor 账户（调用官方 API）
 - Windows 多用户同步（将当前账号同步到其他 Windows 用户的 Cursor）
+
+## 界面预览
+
+### Machine ID 管理
+
+![Machine ID 管理界面](assets/screenshots/screenshot-machine-id.png)
+
+### 账号管理
+
+![账号管理界面](assets/screenshots/screenshot-account-manage.png)
+
+### 无感换号
+
+![无感换号界面](assets/screenshots/screenshot-seamless.png)
+
+### 用量统计
+
+![用量统计界面](assets/screenshots/screenshot-usage.png)
+
+### 设置
+
+![设置界面](assets/screenshots/screenshot-settings.png)
 
 ## 下载使用
 
@@ -61,11 +88,23 @@ Cursor IDE 账户与 Machine ID 管理工具，免安装单文件运行，单实
 ## 本地开发
 
 ```bash
-npm install        # 安装依赖
-npm run tauri:dev  # 开发模式
-npm run tauri:build # 构建
-npm run lint       # 代码检查
-npm run format     # 格式化
+npm install          # 安装依赖
+
+# 仅启动 Web 前端（浏览器预览）
+npm run dev
+
+# 启动 Tauri 桌面应用（推荐开发方式）
+npm run tauri:dev
+
+# 构建前端静态资源
+npm run build
+
+# 构建各平台桌面应用安装包
+npm run tauri:build
+
+# 代码质量相关
+npm run lint         # 代码检查
+npm run format       # 格式化
 ```
 
 环境要求：Node.js >= 18、Rust >= 1.70
@@ -75,20 +114,23 @@ npm run format     # 格式化
 ```
 MyCursor/
 ├── src/                        # React 前端
-│   ├── components/             # UI 组件
-│   ├── pages/                  # 页面
-│   ├── services/               # 服务层
+│   ├── components/             # 通用 UI 组件（卡片 / 表单 / 图表等）
+│   ├── pages/                  # 页面（Machine ID / 账号管理 / 无感换号 / 用量统计 / 设置）
+│   ├── services/               # 服务层（账户、Machine ID、用量统计、配置等）
 │   ├── hooks/                  # 自定义 Hooks
 │   ├── types/                  # TypeScript 类型
 │   ├── context/                # React Context
-│   ├── styles/                 # 全局样式
-│   └── utils/                  # 工具函数
+│   ├── styles/                 # 全局样式与主题（深色 / 浅色 / 透明）
+│   ├── workers/                # Web Worker（数据预处理等）
+│   └── utils/                  # 工具函数（加解密、性能分析、IndexedDB 等）
 ├── src-tauri/                  # Tauri Rust 后端
 │   └── src/
-│       ├── lib.rs              # Tauri 命令
-│       ├── account_manager.rs  # 账户管理
+│       ├── main.rs             # Tauri 入口
+│       ├── lib.rs              # Tauri 命令注册与应用入口
+│       ├── account_manager.rs  # 账户管理逻辑
 │       ├── auth_checker.rs     # 认证 & 使用量查询
-│       ├── machine_id.rs       # Machine ID 操作
+│       ├── machine_id.rs       # Machine ID 读取 / 备份 / 重置
+│       ├── seamless.rs         # 无感换号 HTTP 服务与注入逻辑
 │       └── logger.rs           # 日志系统
 ├── .github/workflows/          # CI/CD（tag 触发自动构建发布）
 ├── package.json
