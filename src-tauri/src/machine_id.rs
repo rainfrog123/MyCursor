@@ -1538,7 +1538,7 @@ impl MachineIdRestorer {
             let file_bytes = fs::read(&target)
                 .with_context(|| format!("Failed to read file for checksum: {:?}", target))?;
             let hash = Sha256::digest(&file_bytes);
-            let new_checksum = general_purpose::STANDARD.encode(hash);
+            let new_checksum = general_purpose::STANDARD_NO_PAD.encode(hash);
 
             let old_checksum = checksums.get(relative_path)
                 .and_then(|v| v.as_str())
