@@ -867,6 +867,20 @@ impl MachineIdRestorer {
             }
         }
 
+        // 更新 product.json 校验和
+        self.log_info("更新 product.json 校验和...");
+        match self.update_product_json_checksums() {
+            Ok(()) => {
+                self.log_info("product.json 校验和更新成功");
+                details.push("Successfully updated product.json checksums".to_string());
+            }
+            Err(e) => {
+                let warning_msg = format!("Warning: Failed to update product.json checksums: {}", e);
+                self.log_warning(&warning_msg);
+                details.push(warning_msg);
+            }
+        }
+
         let message = if success {
             "Machine IDs reset successfully".to_string()
         } else {
