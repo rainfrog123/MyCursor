@@ -565,8 +565,13 @@ impl AccountManager {
         }
     }
 
-    /// Switch to a different account (legacy method - looks up from saved accounts)
+    /// Switch to a different account (legacy method - always force-closes Cursor)
     pub fn switch_account(email: String) -> SwitchAccountResult {
+        Self::switch_account_ex(email, true)
+    }
+
+    /// Switch to a different account with optional force-close of Cursor
+    pub fn switch_account_ex(email: String, force_close: bool) -> SwitchAccountResult {
         let mut details = Vec::new();
 
         // Load accounts to find the target account
@@ -594,23 +599,27 @@ impl AccountManager {
 
         details.push(format!("Switching to account: {}", email));
 
-        // 0. Force close Cursor processes (CRITICAL!)
-        log_debug!("🔍 [DEBUG] Checking if Cursor is running...");
-        if Self::is_cursor_running() {
-            log_debug!("🔍 [DEBUG] Cursor is running, force closing...");
-            match Self::force_close_cursor() {
-                Ok(()) => {
-                    log_info!("✅ [DEBUG] Successfully closed Cursor");
-                    details.push("Successfully closed Cursor processes".to_string());
+        // 0. Force close Cursor processes (only if requested)
+        if force_close {
+            log_debug!("🔍 [DEBUG] Checking if Cursor is running...");
+            if Self::is_cursor_running() {
+                log_debug!("🔍 [DEBUG] Cursor is running, force closing...");
+                match Self::force_close_cursor() {
+                    Ok(()) => {
+                        log_info!("✅ [DEBUG] Successfully closed Cursor");
+                        details.push("Successfully closed Cursor processes".to_string());
+                    }
+                    Err(e) => {
+                        log_error!("❌ [DEBUG] Failed to close Cursor: {}", e);
+                        details.push(format!("Warning: Failed to close Cursor: {}", e));
+                    }
                 }
-                Err(e) => {
-                    log_error!("❌ [DEBUG] Failed to close Cursor: {}", e);
-                    details.push(format!("Warning: Failed to close Cursor: {}", e));
-                }
+            } else {
+                log_info!("✅ [DEBUG] Cursor is not running");
+                details.push("Cursor is not running".to_string());
             }
         } else {
-            log_info!("✅ [DEBUG] Cursor is not running");
-            details.push("Cursor is not running".to_string());
+            details.push("Skipped force-close Cursor (user chose manual restart)".to_string());
         }
 
         // 1. Inject email to SQLite database

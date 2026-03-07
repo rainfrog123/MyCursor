@@ -101,7 +101,8 @@ export const AccountManagePage: React.FC = () => {
     account: AccountInfo | null;
     resetMachineId: boolean;
     machineIdOption: "bound" | "new";
-  }>({ show: false, account: null, resetMachineId: true, machineIdOption: "bound" });
+    cursorAction: "restart" | "close_only" | "none";
+  }>({ show: false, account: null, resetMachineId: true, machineIdOption: "bound", cursorAction: "close_only" });
 
   // 事件监听器清理函数引用
   const cleanupListenersRef = useRef<(() => void) | null>(null);
@@ -186,11 +187,12 @@ export const AccountManagePage: React.FC = () => {
       account,
       resetMachineId: true,
       machineIdOption: account.machine_ids ? "bound" : "new",
+      cursorAction: "close_only",
     });
   }, []);
 
   const handleSwitchConfirm = useCallback(async () => {
-    const { account, resetMachineId, machineIdOption } = switchModal;
+    const { account, resetMachineId, machineIdOption, cursorAction } = switchModal;
     if (!account) return;
     setSwitchModal(prev => ({ ...prev, show: false }));
 
@@ -209,20 +211,26 @@ export const AccountManagePage: React.FC = () => {
       }
 
       const option = resetMachineId ? machineIdOption : "none";
+      const forceClose = cursorAction !== "none";
       const { invoke } = await import("@tauri-apps/api/core");
       const result = await invoke<{ success: boolean; message: string; details: string[] }>(
         "switch_account_with_options",
-        { email: account.email, machineIdOption: option }
+        { email: account.email, machineIdOption: option, autoRestart: forceClose }
       );
 
       if (result.success) {
-        setToast({ message: "账户切换成功，正在启动 Cursor...", type: "success" });
         await loadAccounts();
-        // 自动启动 Cursor
-        try {
-          await invoke<{ success: boolean; message: string }>("launch_cursor");
-        } catch {
-          // 启动失败不影响切换结果
+        if (cursorAction === "restart") {
+          setToast({ message: "账户切换成功，正在启动 Cursor...", type: "success" });
+          try {
+            await invoke<{ success: boolean; message: string }>("launch_cursor");
+          } catch {
+            // 启动失败不影响切换结果
+          }
+        } else if (cursorAction === "close_only") {
+          setToast({ message: "账户切换成功，Cursor 已关闭，请手动启动", type: "success" });
+        } else {
+          setToast({ message: "账户切换成功，请手动重启 Cursor 生效", type: "success" });
         }
       } else {
         setToast({ message: result.message, type: "error" });
@@ -922,9 +930,45 @@ export const AccountManagePage: React.FC = () => {
           <div className="relative z-10 w-[400px] rounded-lg p-6" style={{ backgroundColor: 'var(--bg-primary)', boxShadow: 'var(--shadow-heavy)' }}>
             <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>切换账号</h3>
             <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
-              确定要使用账号 <strong>{switchModal.account.email}</strong> 吗？<br />
-              此操作可能会重启 Cursor！
+              确定要使用账号 <strong>{switchModal.account.email}</strong> 吗？
             </p>
+
+            {/* Cursor 操作选项 */}
+            <div className="mb-3">
+              <span className="text-xs mb-2 block" style={{ color: 'var(--text-secondary)' }}>Cursor 操作</span>
+              <div className="space-y-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="cursorAction"
+                    checked={switchModal.cursorAction === "restart"}
+                    onChange={() => setSwitchModal(prev => ({ ...prev, cursorAction: "restart" }))}
+                    style={{ accentColor: 'var(--primary-color)' }}
+                  />
+                  <span className="text-sm" style={{ color: 'var(--text-primary)' }}>关闭并重启 Cursor</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="cursorAction"
+                    checked={switchModal.cursorAction === "close_only"}
+                    onChange={() => setSwitchModal(prev => ({ ...prev, cursorAction: "close_only" }))}
+                    style={{ accentColor: 'var(--primary-color)' }}
+                  />
+                  <span className="text-sm" style={{ color: 'var(--text-primary)' }}>仅关闭 Cursor（不自动启动）</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="cursorAction"
+                    checked={switchModal.cursorAction === "none"}
+                    onChange={() => setSwitchModal(prev => ({ ...prev, cursorAction: "none" }))}
+                    style={{ accentColor: 'var(--primary-color)' }}
+                  />
+                  <span className="text-sm" style={{ color: 'var(--text-primary)' }}>不操作 Cursor（稍后手动重启）</span>
+                </label>
+              </div>
+            </div>
 
             {/* 重置机器码勾选 */}
             <label className="flex items-center gap-2 mb-3 cursor-pointer">

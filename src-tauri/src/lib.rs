@@ -726,7 +726,16 @@ async fn check_admin_privileges() -> Result<bool, String> {
 
 #[tauri::command]
 async fn switch_account(email: String) -> Result<SwitchAccountResult, String> {
-    Ok(AccountManager::switch_account(email))
+    let mut result = AccountManager::switch_account(email);
+    if result.success {
+        if let Ok(restorer) = MachineIdRestorer::new() {
+            match restorer.update_product_json_checksums() {
+                Ok(()) => result.details.push("product.json 校验和已更新".to_string()),
+                Err(e) => result.details.push(format!("Warning: 校验和更新失败: {}", e)),
+            }
+        }
+    }
+    Ok(result)
 }
 
 #[tauri::command]
@@ -735,19 +744,29 @@ async fn switch_account_with_token(
     token: String,
     auth_type: Option<String>,
 ) -> Result<SwitchAccountResult, String> {
-    Ok(AccountManager::switch_account_with_token(
-        email, token, auth_type,
-    ))
+    let mut result = AccountManager::switch_account_with_token(email, token, auth_type);
+    if result.success {
+        if let Ok(restorer) = MachineIdRestorer::new() {
+            match restorer.update_product_json_checksums() {
+                Ok(()) => result.details.push("product.json 校验和已更新".to_string()),
+                Err(e) => result.details.push(format!("Warning: 校验和更新失败: {}", e)),
+            }
+        }
+    }
+    Ok(result)
 }
 
 /// 切换账号（带机器码选项）
 /// machine_id_option: "bound" | "new" | "none"
+/// auto_restart: whether to force-close Cursor before switching
 #[tauri::command]
 async fn switch_account_with_options(
     email: String,
     machine_id_option: String,
+    auto_restart: Option<bool>,
 ) -> Result<SwitchAccountResult, String> {
     let mut details = Vec::new();
+    let should_restart = auto_restart.unwrap_or(true);
 
     // 加载账户
     let accounts = AccountManager::load_accounts()
@@ -811,8 +830,23 @@ async fn switch_account_with_options(
     }
 
     // 注入账号（email + token）
-    let switch_result = AccountManager::switch_account(email.clone());
+    let switch_result = AccountManager::switch_account_ex(email.clone(), should_restart);
     details.extend(switch_result.details);
+
+    // 更新 product.json 校验和（inject_email_update_js 会修改 workbench.desktop.main.js，
+    // 必须在所有文件修改完成后重新计算，否则 Cursor 会报完整性校验错误）
+    if switch_result.success {
+        match MachineIdRestorer::new() {
+            Ok(restorer) => match restorer.update_product_json_checksums() {
+                Ok(()) => details.push("product.json 校验和已更新".to_string()),
+                Err(e) => {
+                    log_warn!("[切换账号] 更新校验和失败: {}", e);
+                    details.push(format!("Warning: 校验和更新失败: {}", e));
+                }
+            },
+            Err(e) => details.push(format!("Warning: 初始化失败，无法更新校验和: {}", e)),
+        }
+    }
 
     Ok(SwitchAccountResult {
         success: switch_result.success,
