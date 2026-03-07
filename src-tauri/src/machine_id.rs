@@ -6,6 +6,7 @@ use dirs;
 use rand::Rng;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use base64::{Engine as _, engine::general_purpose};
 use sha2::{Digest, Sha256, Sha512};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
@@ -1473,6 +1474,88 @@ impl MachineIdRestorer {
         Ok(())
     }
 
+    pub fn update_product_json_checksums(&self) -> Result<()> {
+        self.log_info("=== 更新 product.json 校验和 ===");
+
+        let app_dir = match Self::get_cursor_app_paths() {
+            Ok((package_json, _)) => package_json
+                .parent()
+                .context("Could not get app directory from package.json path")?
+                .to_path_buf(),
+            Err(e) => return Err(anyhow::anyhow!("Could not locate Cursor app directory: {}", e)),
+        };
+
+        let product_json_path = app_dir.join("product.json");
+        self.log_info(&format!("product.json 路径: {:?}", product_json_path));
+
+        if !product_json_path.exists() {
+            return Err(anyhow::anyhow!("product.json not found: {}", product_json_path.display()));
+        }
+
+        let content = fs::read_to_string(&product_json_path)
+            .context("Failed to read product.json")?;
+        let mut data: serde_json::Value =
+            serde_json::from_str(&content).context("Failed to parse product.json")?;
+
+        let checksums = match data.get_mut("checksums") {
+            Some(c) => c.as_object_mut().context("checksums is not an object")?,
+            None => {
+                self.log_warning("product.json 中没有 checksums 字段，跳过");
+                return Ok(());
+            }
+        };
+
+        let mut updated = 0;
+        let keys: Vec<String> = checksums.keys().cloned().collect();
+        for relative_path in &keys {
+            let normalized = relative_path.replace('/', std::path::MAIN_SEPARATOR_STR);
+            let file_path = app_dir.join("out").join(&normalized);
+            let alt_path = app_dir.join(&normalized);
+
+            let target = if file_path.exists() {
+                file_path
+            } else if alt_path.exists() {
+                alt_path
+            } else {
+                self.log_warning(&format!("校验和文件未找到: {} (尝试 {:?})", relative_path, file_path));
+                continue;
+            };
+
+            let file_bytes = fs::read(&target)
+                .with_context(|| format!("Failed to read file for checksum: {:?}", target))?;
+            let hash = Sha256::digest(&file_bytes);
+            let new_checksum = general_purpose::STANDARD.encode(hash);
+
+            let old_checksum = checksums.get(relative_path)
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            if old_checksum != new_checksum {
+                self.log_info(&format!(
+                    "更新校验和: {} (旧: {}... -> 新: {}...)",
+                    relative_path,
+                    &old_checksum[..old_checksum.len().min(12)],
+                    &new_checksum[..new_checksum.len().min(12)]
+                ));
+                checksums.insert(relative_path.clone(), serde_json::Value::String(new_checksum));
+                updated += 1;
+            }
+        }
+
+        if updated > 0 {
+            let new_content = serde_json::to_string_pretty(&data)
+                .context("Failed to serialize product.json")?;
+            fs::write(&product_json_path, new_content)
+                .context("Failed to write product.json")?;
+            self.log_info(&format!("product.json 已更新 {} 个校验和", updated));
+        } else {
+            self.log_info("所有校验和已是最新，无需更新");
+        }
+
+        Ok(())
+    }
+
     pub fn complete_cursor_reset(&self) -> Result<ResetResult> {
         let mut details = Vec::new();
         let mut success = true;
@@ -1601,6 +1684,21 @@ impl MachineIdRestorer {
                 let error_msg =
                     format!("Warning: Could not locate workbench.desktop.main.js: {}", e);
                 self.log_error(&error_msg);
+                details.push(error_msg);
+            }
+        }
+
+        // 第四步：更新 product.json 校验和（防止"installation appears to be corrupt"警告）
+        self.log_info("=== 步骤 4: 更新 product.json 校验和 ===");
+        match self.update_product_json_checksums() {
+            Ok(()) => {
+                let success_msg = "Successfully updated product.json checksums".to_string();
+                self.log_info(&success_msg);
+                details.push(success_msg);
+            }
+            Err(e) => {
+                let error_msg = format!("Warning: Failed to update product.json checksums: {}", e);
+                self.log_warning(&error_msg);
                 details.push(error_msg);
             }
         }
