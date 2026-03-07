@@ -1,5 +1,5 @@
 use crate::machine_id::MachineIdRestorer;
-use crate::{log_error, log_info};
+use crate::{log_error, log_info, log_warn};
 use serde::{Deserialize, Serialize};
 use std::io::Read;
 use std::path::PathBuf;
@@ -405,6 +405,18 @@ pub fn inject_seamless(port: u16) -> Result<serde_json::Value, String> {
 
     fs::write(&wp, &content).map_err(|e| e.to_string())?;
 
+    // 更新 product.json 校验和
+    match MachineIdRestorer::new() {
+        Ok(restorer) => match restorer.update_product_json_checksums() {
+            Ok(()) => det.push("product.json 校验和已更新".to_string()),
+            Err(e) => {
+                log_warn!("[无感换号] 更新校验和失败: {}", e);
+                det.push(format!("Warning: 校验和更新失败: {}", e));
+            }
+        },
+        Err(e) => det.push(format!("Warning: 初始化失败: {}", e)),
+    }
+
     log_info!(
         "[无感换号] 注入完成: {} -> {} 字节",
         orig_len,
@@ -427,6 +439,13 @@ pub fn restore_seamless() -> Result<serde_json::Value, String> {
         return Ok(serde_json::json!({"success":false,"message":"无备份"}));
     }
     fs::copy(&bp, &wp).map_err(|e| e.to_string())?;
+
+    if let Ok(restorer) = MachineIdRestorer::new() {
+        if let Err(e) = restorer.update_product_json_checksums() {
+            log_warn!("[无感换号] 恢复后更新校验和失败: {}", e);
+        }
+    }
+
     log_info!("[无感换号] 已恢复");
     Ok(serde_json::json!({"success":true,"message":"已恢复，请重启 Cursor"}))
 }
