@@ -2704,6 +2704,12 @@ async fn get_seamless_status() -> Result<seamless::SeamlessStatus, String> {
     seamless::get_seamless_status()
 }
 
+#[tauri::command]
+async fn save_sort_settings(field: String, order: String) -> Result<serde_json::Value, String> {
+    seamless::save_sort_settings(&field, &order)?;
+    Ok(serde_json::json!({"success": true, "field": field, "order": order}))
+}
+
 /// 启动 Cursor 应用
 #[tauri::command]
 async fn launch_cursor() -> Result<serde_json::Value, String> {
@@ -2916,7 +2922,8 @@ pub fn run() {
             stop_seamless_server,
             inject_seamless,
             restore_seamless,
-            get_seamless_status
+            get_seamless_status,
+            save_sort_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

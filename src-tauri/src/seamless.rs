@@ -61,9 +61,64 @@ fn read_account_cache() -> Result<serde_json::Value, String> {
     serde_json::from_str(&c).map_err(|e| e.to_string())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SortSettings {
+    pub field: String,
+    pub order: String,
+}
+
+impl Default for SortSettings {
+    fn default() -> Self {
+        Self {
+            field: "usage".to_string(),
+            order: "desc".to_string(),
+        }
+    }
+}
+
+fn get_sort_settings_path() -> Result<PathBuf, String> {
+    crate::get_data_dir()
+        .map(|dir| dir.join("sort_settings.json"))
+        .map_err(|e| e.to_string())
+}
+
+pub fn read_sort_settings() -> SortSettings {
+    match get_sort_settings_path() {
+        Ok(p) if p.exists() => {
+            fs::read_to_string(&p)
+                .ok()
+                .and_then(|c| serde_json::from_str(&c).ok())
+                .unwrap_or_default()
+        }
+        _ => SortSettings::default(),
+    }
+}
+
+pub fn save_sort_settings(field: &str, order: &str) -> Result<(), String> {
+    let p = get_sort_settings_path()?;
+    let settings = SortSettings {
+        field: field.to_string(),
+        order: order.to_string(),
+    };
+    let json = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
+    fs::write(&p, json).map_err(|e| e.to_string())?;
+    log_info!("[排序设置] 已保存: field={}, order={}", field, order);
+    Ok(())
+}
+
 fn handle_accounts() -> tiny_http::Response<io::Cursor<Vec<u8>>> {
     match read_account_cache() {
-        Ok(a) => json_resp(200, &serde_json::json!({"code":0,"data":a}).to_string()),
+        Ok(a) => {
+            let sort = read_sort_settings();
+            json_resp(200, &serde_json::json!({
+                "code": 0,
+                "data": a,
+                "sort": {
+                    "field": sort.field,
+                    "order": sort.order
+                }
+            }).to_string())
+        }
         Err(e) => json_resp(500, &serde_json::json!({"code":1,"msg":e}).to_string()),
     }
 }
@@ -213,10 +268,9 @@ function notif(m,c){{try{{var d=document.getElementById('mc-n')||function(){{var
 /* 订阅信息映射 */
 var SL={{'free':{{t:'Free',c:'#4a89dc',b:'rgba(74,137,220,.12)'}},'pro':{{t:'Pro',c:'#a855f7',b:'rgba(168,85,247,.15)'}},'pro_plus':{{t:'Pro+',c:'#a855f7',b:'rgba(168,85,247,.15)'}},'ultra':{{t:'Ultra',c:'#f59e0b',b:'rgba(245,158,11,.15)'}},'token_expired':{{t:'\u5df2\u5931\u6548',c:'#f48771',b:'rgba(244,135,113,.15)'}}}};
 function SI(s){{return SL[s]||{{t:s||'\u672a\u77e5',c:'#888',b:'rgba(136,136,136,.12)'}}}}
-/* 排序函数（同步主应用设置） */
-function sortAccs(arr){{
-var sf,so;try{{sf=localStorage.getItem('account_sort_field')||'none';so=localStorage.getItem('account_sort_order')||'asc'}}catch(e){{sf='none';so='asc'}}
-if(sf==='none')return arr;
+/* 排序函数（使用API返回的设置） */
+function sortAccs(arr,sf,so){{
+if(!sf||sf==='none')return arr;
 var subOrd={{'ultra':1,'pro_plus':2,'pro':3,'business':4,'free_trial':5,'free':6,'token_expired':7}};
 return arr.slice().sort(function(a,b){{
 var cmp=0;
@@ -246,8 +300,10 @@ function fetchPick(){{
 (async function(){{try{{
 var r=await fetch('http://127.0.0.1:'+PORT+'/api/accounts');
 var d=await r.json();
-if(d.code===0&&d.data&&d.data.length)pick(sortAccs(d.data));
-else notif('\u6ca1\u6709\u53ef\u7528\u8d26\u53f7','#f48771');
+if(d.code===0&&d.data&&d.data.length){{
+var sf=d.sort&&d.sort.field||'usage',so=d.sort&&d.sort.order||'desc';
+pick(sortAccs(d.data,sf,so));
+}}else notif('\u6ca1\u6709\u53ef\u7528\u8d26\u53f7','#f48771');
 }}catch(e){{notif('\u8fde\u63a5\u5931\u8d25: '+(e.message||e),'#f48771');console.error('[MyCursor] fetch error',e)}}}})()}}
 /* 创建筛选药丸 */
 function mkP(txt,act,fn){{var p=document.createElement('span');p.textContent=txt;p.style.cssText='padding:2px 10px;border-radius:12px;font-size:11px;cursor:pointer;transition:all .15s;user-select:none;white-space:nowrap;'+(act?'background:rgba(14,99,156,.3);color:#4fc3f7;border:1px solid rgba(14,99,156,.5)':'background:transparent;color:#888;border:1px solid #3c3c3c');p.onmouseover=function(){{if(!act)p.style.background='#2a2d2e'}};p.onmouseout=function(){{if(!act)p.style.background=act?'rgba(14,99,156,.3)':'transparent'}};p.onclick=fn;return p}}

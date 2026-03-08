@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { AccountService } from "../services/accountService";
 import { ConfigService } from "../services/configService";
 import { AccountUsageService } from "../services/accountUsageService";
@@ -13,10 +14,10 @@ export const useAccountManagement = () => {
   const [subscriptionFilter, setSubscriptionFilter] = useState<string>("all");
   const [tagFilter, setTagFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<string>(() => {
-    return safeStorage.get<string>('account_sort_field', 'none', true) || 'none';
+    return safeStorage.get<string>('account_sort_field', 'usage', true) || 'usage';
   });
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(() => {
-    return safeStorage.get<'asc' | 'desc'>('account_sort_order', 'asc', true) || 'asc';
+    return safeStorage.get<'asc' | 'desc'>('account_sort_order', 'desc', true) || 'desc';
   });
   const [refreshProgress, setRefreshProgress] = useState<{
     current: number;
@@ -715,12 +716,16 @@ export const useAccountManagement = () => {
     { value: 'subscription', label: '订阅类型' },
   ], []);
 
-  // 更新排序并保存到本地存储
+  // 更新排序并保存到本地存储和文件
   const updateSort = useCallback((field: string, order: 'asc' | 'desc') => {
     setSortField(field);
     setSortOrder(order);
     safeStorage.set('account_sort_field', field);
     safeStorage.set('account_sort_order', order);
+    // 同步保存到文件供无感换号使用
+    invoke('save_sort_settings', { field, order }).catch(err => {
+      console.warn('Failed to save sort settings to file:', err);
+    });
   }, []);
 
   // 更新单个账户的用量费用
