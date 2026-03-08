@@ -20,8 +20,8 @@ type PageType = "machineId" | "account" | "seamless" | "usage" | "settings";
 
 function App() {
   const [currentPage, setCurrentPage] = useState<PageType>("machineId");
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
-  const [isSidebarPinned, setIsSidebarPinned] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarPinned, setIsSidebarPinned] = useState(true);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
 
   // ✅ 初始化混合存储（IndexedDB + localStorage）

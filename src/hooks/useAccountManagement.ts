@@ -12,6 +12,12 @@ export const useAccountManagement = () => {
   const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
   const [subscriptionFilter, setSubscriptionFilter] = useState<string>("all");
   const [tagFilter, setTagFilter] = useState<string>("all");
+  const [sortField, setSortField] = useState<string>(() => {
+    return safeStorage.get<string>('account_sort_field', 'none', true) || 'none';
+  });
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(() => {
+    return safeStorage.get<'asc' | 'desc'>('account_sort_order', 'asc', true) || 'asc';
+  });
   const [refreshProgress, setRefreshProgress] = useState<{
     current: number;
     total: number;
@@ -628,11 +634,12 @@ export const useAccountManagement = () => {
     return options;
   }, [accountData]);
 
-  // 过滤账户列表（订阅类型 + 标签双重过滤）
+  // 过滤并排序账户列表
   const filteredAccounts = useMemo(() => {
     if (!accountData?.accounts) return [];
 
-    return accountData.accounts.filter((account) => {
+    // 先过滤
+    let result = accountData.accounts.filter((account) => {
       // 订阅类型过滤
       if (subscriptionFilter !== "all") {
         if (subscriptionFilter === "free") {
@@ -651,7 +658,70 @@ export const useAccountManagement = () => {
       }
       return true;
     });
-  }, [accountData, subscriptionFilter, tagFilter]);
+
+    // 再排序
+    if (sortField !== 'none') {
+      result = [...result].sort((a, b) => {
+        let comparison = 0;
+        
+        switch (sortField) {
+          case 'date':
+            // 按创建日期排序
+            const dateA = new Date(a.created_at).getTime() || 0;
+            const dateB = new Date(b.created_at).getTime() || 0;
+            comparison = dateA - dateB;
+            break;
+          case 'trial':
+            // 按试用剩余天数排序（无试用的放最后）
+            const trialA = a.trial_days_remaining ?? -1;
+            const trialB = b.trial_days_remaining ?? -1;
+            comparison = trialA - trialB;
+            break;
+          case 'usage':
+            // 按用量费用排序
+            const usageA = a.usage_cost_cents ?? 0;
+            const usageB = b.usage_cost_cents ?? 0;
+            comparison = usageA - usageB;
+            break;
+          case 'email':
+            // 按邮箱字母排序
+            comparison = (a.email || '').localeCompare(b.email || '');
+            break;
+          case 'subscription':
+            // 按订阅类型排序
+            const subOrder: Record<string, number> = { 'ultra': 1, 'pro_plus': 2, 'pro': 3, 'business': 4, 'free_trial': 5, 'free': 6, 'token_expired': 7 };
+            const subA = subOrder[a.subscription_type || 'free'] || 99;
+            const subB = subOrder[b.subscription_type || 'free'] || 99;
+            comparison = subA - subB;
+            break;
+          default:
+            comparison = 0;
+        }
+        
+        return sortOrder === 'asc' ? comparison : -comparison;
+      });
+    }
+
+    return result;
+  }, [accountData, subscriptionFilter, tagFilter, sortField, sortOrder]);
+
+  // 排序选项
+  const sortOptions = useMemo(() => [
+    { value: 'none', label: '默认排序' },
+    { value: 'date', label: '创建日期' },
+    { value: 'trial', label: '试用天数' },
+    { value: 'usage', label: '用量费用' },
+    { value: 'email', label: '邮箱' },
+    { value: 'subscription', label: '订阅类型' },
+  ], []);
+
+  // 更新排序并保存到本地存储
+  const updateSort = useCallback((field: string, order: 'asc' | 'desc') => {
+    setSortField(field);
+    setSortOrder(order);
+    safeStorage.set('account_sort_field', field);
+    safeStorage.set('account_sort_order', order);
+  }, []);
 
   // 更新单个账户的用量费用
   const updateAccountUsageCost = useCallback((email: string, usageCostCents: number) => {
@@ -718,10 +788,12 @@ export const useAccountManagement = () => {
               const totalCost = result.data.aggregatedData.total_cost_cents || 0;
               return { email: account.email, status: 'ok' as const, cost: totalCost };
             }
-            return { email: account.email, status: 'error' as const, cost: 0 };
+            // 如果没有用量数据，返回 $0.00 而不是错误
+            return { email: account.email, status: 'ok' as const, cost: 0 };
           } catch (error) {
             console.error(`获取 ${account.email} 用量失败:`, error);
-            return { email: account.email, status: 'error' as const, cost: 0 };
+            // 即使请求失败，也返回 $0.00 而不是错误
+            return { email: account.email, status: 'ok' as const, cost: 0 };
           }
         });
 
@@ -788,6 +860,9 @@ export const useAccountManagement = () => {
     subscriptionFilterOptions,
     tagFilter,
     tagFilterOptions,
+    sortField,
+    sortOrder,
+    sortOptions,
     loadAccounts,
     refreshCurrentAccount,
     addAccountToList,
@@ -803,6 +878,7 @@ export const useAccountManagement = () => {
     setTagFilter,
     setConcurrentLimit,
     updateAccountUsageCost,
+    updateSort,
   };
 };
 

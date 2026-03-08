@@ -45,6 +45,10 @@ import {
   IconLogin,
   IconDots,
   IconFeather,
+  IconArrowUp,
+  IconArrowDown,
+  IconSortAscending,
+  IconSortDescending,
 } from '@tabler/icons-react';
 
 export type IconName =
@@ -87,7 +91,11 @@ export type IconName =
   | 'logout'
   | 'login'
   | 'dots'
-  | 'feather';
+  | 'feather'
+  | 'arrow-up'
+  | 'arrow-down'
+  | 'sort-asc'
+  | 'sort-desc';
 
 interface IconProps {
   name: IconName;
@@ -139,6 +147,10 @@ const iconMap = {
   login: IconLogin,
   dots: IconDots,
   feather: IconFeather,
+  'arrow-up': IconArrowUp,
+  'arrow-down': IconArrowDown,
+  'sort-asc': IconSortAscending,
+  'sort-desc': IconSortDescending,
 };
 
 /**

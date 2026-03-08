@@ -50,6 +50,9 @@ export const AccountManagePage: React.FC = () => {
     subscriptionFilterOptions,
     tagFilter,
     tagFilterOptions,
+    sortField,
+    sortOrder,
+    sortOptions,
     loadAccounts,
     refreshCurrentAccount,
     addAccountToList,
@@ -65,6 +68,7 @@ export const AccountManagePage: React.FC = () => {
     setTagFilter,
     setConcurrentLimit,
     updateAccountUsageCost,
+    updateSort,
   } = useAccountManagement();
 
   // UI 状态
@@ -777,6 +781,48 @@ export const AccountManagePage: React.FC = () => {
                   onChange={(value) => setTagFilter(value)}
                 />
               )}
+
+              {/* 排序控制 */}
+              <div style={{ 
+                height: '20px', 
+                width: '1px', 
+                backgroundColor: 'var(--border-primary)',
+                margin: '0 4px'
+              }} />
+              <div className="flex items-center gap-1">
+                <Dropdown
+                  options={sortOptions}
+                  value={sortField}
+                  onChange={(value) => updateSort(value, sortOrder)}
+                />
+                <button
+                  type="button"
+                  onClick={() => updateSort(sortField, sortOrder === 'asc' ? 'desc' : 'asc')}
+                  disabled={sortField === 'none'}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '32px',
+                    height: '32px',
+                    padding: '0',
+                    fontSize: '13px',
+                    backgroundColor: 'var(--bg-primary)',
+                    color: sortField === 'none' ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                    border: '1px solid var(--border-primary)',
+                    borderRadius: 'var(--border-radius)',
+                    cursor: sortField === 'none' ? 'not-allowed' : 'pointer',
+                    transition: 'all var(--transition-duration) ease',
+                    opacity: sortField === 'none' ? 0.5 : 1,
+                  }}
+                  title={sortOrder === 'asc' ? '升序 (点击切换为降序)' : '降序 (点击切换为升序)'}
+                >
+                  <Icon 
+                    name={sortOrder === 'asc' ? 'arrow-up' : 'arrow-down'} 
+                    size={14} 
+                  />
+                </button>
+              </div>
 
               <div className="flex items-center gap-2">
                 <label
