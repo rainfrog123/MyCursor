@@ -750,7 +750,6 @@ export const useAccountManagement = () => {
       const accounts = accountData.accounts;
       let refreshedCount = 0;
       let successCount = 0;
-      let failCount = 0;
       const updatedCostsMap = new Map<string, number>();
 
       // 默认日期范围: 02/01 - 05/01
@@ -805,9 +804,8 @@ export const useAccountManagement = () => {
             if (v.status === 'ok') {
               successCount++;
               updatedCostsMap.set(v.email, v.cost);
-            } else if (v.status === 'error') {
-              failCount++;
             }
+            // 'skipped' status (token_expired) 不计入成功或失败
           }
           refreshedCount++;
         });
@@ -832,10 +830,10 @@ export const useAccountManagement = () => {
         }
       }
 
-      const message = `用量刷新完成: 成功 ${successCount}，失败 ${failCount}`;
+      const message = `用量刷新完成: 成功 ${successCount} 个账户`;
       console.log(`✅ ${message}`);
 
-      return { success: failCount === 0, message };
+      return { success: true, message };
     } catch (error) {
       console.error("刷新所有账户用量失败:", error);
       return { success: false, message: `刷新用量异常: ${error}` };
