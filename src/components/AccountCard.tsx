@@ -140,6 +140,16 @@ export const AccountCard = memo(({
       ? ` - ${account.trial_days_remaining}天`
       : "";
 
+    // 格式化用量费用显示
+    const formatUsageCost = () => {
+      if (account.usage_cost_cents === undefined || account.usage_cost_cents === null) {
+        return "";
+      }
+      const dollars = account.usage_cost_cents / 100;
+      return ` $${dollars.toFixed(2)}`;
+    };
+    const usageCostDisplay = formatUsageCost();
+
     // 根据订阅类型动态匹配样式，不硬编码具体类型名称
     const styleMap: Record<string, { bg: string; color: string; icon: string; label: string }> = {
       pro:       { bg: 'rgba(168, 85, 247, 0.15)', color: '#9333ea', icon: 'crown', label: 'Pro' },
@@ -158,15 +168,29 @@ export const AccountCard = memo(({
     };
 
     return (
-      <span
-        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-        style={{ backgroundColor: style.bg, color: style.color }}
-      >
-        <Icon name={style.icon as any} size={12} style={{ marginRight: '2px' }} />
-        {style.label}
-      </span>
+      <div className="inline-flex items-center gap-1">
+        <span
+          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+          style={{ backgroundColor: style.bg, color: style.color }}
+        >
+          <Icon name={style.icon as any} size={12} style={{ marginRight: '2px' }} />
+          {style.label}
+        </span>
+        {usageCostDisplay && (
+          <span
+            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+            style={{ 
+              backgroundColor: 'rgba(245, 158, 11, 0.15)', 
+              color: '#d97706',
+            }}
+            title="已消费金额"
+          >
+            {usageCostDisplay}
+          </span>
+        )}
+      </div>
     );
-  }, [account.subscription_type, account.trial_days_remaining]);
+  }, [account.subscription_type, account.trial_days_remaining, account.usage_cost_cents]);
 
   return (
     <div
@@ -527,6 +551,7 @@ export const AccountCard = memo(({
   if (prevProps.account.subscription_type !== nextProps.account.subscription_type) return false;
   if (prevProps.account.subscription_status !== nextProps.account.subscription_status) return false;
   if (prevProps.account.trial_days_remaining !== nextProps.account.trial_days_remaining) return false;
+  if (prevProps.account.usage_cost_cents !== nextProps.account.usage_cost_cents) return false;
   if (prevProps.account.username !== nextProps.account.username) return false;
   if (JSON.stringify(prevProps.account.tags) !== JSON.stringify(nextProps.account.tags)) return false;
 

@@ -55,6 +55,7 @@ export const AccountManagePage: React.FC = () => {
     addAccountToList,
     refreshSingleAccount,
     refreshAllAccounts,
+    refreshAllAccountsUsage,
     removeAccount,
     removeSelectedAccounts,
     refreshSelectedAccounts,
@@ -63,6 +64,7 @@ export const AccountManagePage: React.FC = () => {
     setSubscriptionFilter,
     setTagFilter,
     setConcurrentLimit,
+    updateAccountUsageCost,
   } = useAccountManagement();
 
   // UI 状态
@@ -466,7 +468,7 @@ export const AccountManagePage: React.FC = () => {
   // 智能刷新：如果有选中账户则刷新选中的，否则刷新全部
   const handleRefreshAll = useCallback(async () => {
     if (selectedAccounts.size > 0) {
-      // 刷新选中的账户
+      // 刷新选中的账户订阅信息
       const result = await refreshSelectedAccounts();
       if (result.success) {
         setToast({ message: result.message || `已刷新 ${selectedAccounts.size} 个账户`, type: "success" });
@@ -474,15 +476,23 @@ export const AccountManagePage: React.FC = () => {
         setToast({ message: result.message || "刷新失败", type: "error" });
       }
     } else {
-      // 刷新所有账户
-      const result = await refreshAllAccounts();
-      if (result.success) {
-        setToast({ message: "所有账户信息已刷新", type: "success" });
+      // 刷新所有账户订阅信息
+      const accountResult = await refreshAllAccounts();
+      if (!accountResult.success) {
+        setToast({ message: accountResult.message || "刷新账户信息失败", type: "error" });
+        return;
+      }
+      
+      // 然后刷新所有账户的用量数据
+      setToast({ message: "账户信息已刷新，正在获取用量数据...", type: "success" });
+      const usageResult = await refreshAllAccountsUsage();
+      if (usageResult.success) {
+        setToast({ message: "所有账户信息和用量数据已刷新", type: "success" });
       } else {
-        setToast({ message: result.message || "刷新失败", type: "error" });
+        setToast({ message: usageResult.message || "用量数据刷新失败", type: "error" });
       }
     }
-  }, [selectedAccounts, refreshSelectedAccounts, refreshAllAccounts]);
+  }, [selectedAccounts, refreshSelectedAccounts, refreshAllAccounts, refreshAllAccountsUsage]);
 
   // 删除选中的账户
   const handleDeleteSelected = useCallback(async () => {
@@ -1079,6 +1089,9 @@ export const AccountManagePage: React.FC = () => {
                     email={selectedAccountUsage.account.email}
                     className="mt-4"
                     hideHeader={true}
+                    onUsageCostUpdated={(totalCostCents) => {
+                      updateAccountUsageCost(selectedAccountUsage.account.email, totalCostCents);
+                    }}
                   />
                 </div>
               </div>

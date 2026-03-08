@@ -14,6 +14,7 @@ interface UsageDisplayProps {
   email?: string;
   className?: string;
   hideHeader?: boolean; // 是否隐藏标题栏
+  onUsageCostUpdated?: (totalCostCents: number) => void; // 当用量费用更新时回调
 }
 
 export const UsageDisplay: React.FC<UsageDisplayProps> = ({
@@ -21,6 +22,7 @@ export const UsageDisplay: React.FC<UsageDisplayProps> = ({
   email,
   className = "",
   hideHeader = false,
+  onUsageCostUpdated,
 }) => {
   // 本地状态管理（不使用Context，完全本地化）
   const [localUsageData, setLocalUsageData] = useState<any>(null);
@@ -33,9 +35,11 @@ export const UsageDisplay: React.FC<UsageDisplayProps> = ({
   const { config } = useTheme(); // 获取主题配置
 
   const [dateRange, setDateRange] = useState<DateRange>(() => {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 30);
+    const now = new Date();
+    const year = now.getFullYear();
+    // 默认日期范围: 02/01 - 05/01
+    const startDate = new Date(year, 1, 1); // 2月1日 (月份从0开始)
+    const endDate = new Date(year, 4, 1);   // 5月1日
 
     console.log("📅 初始化日期范围:", {
       startDate: startDate.toISOString(),
@@ -399,6 +403,17 @@ export const UsageDisplay: React.FC<UsageDisplayProps> = ({
 
     return localUsageData;
   }, [localUsageData, correctedTotalCost, correctedModelCosts]);
+
+  // 当用量费用更新时通知父组件
+  useEffect(() => {
+    if (onUsageCostUpdated) {
+      // 优先使用图表计算的费用，否则使用本地数据的费用
+      const totalCost = correctedTotalCost ?? localUsageData?.total_cost_cents;
+      if (totalCost !== undefined && totalCost !== null) {
+        onUsageCostUpdated(totalCost);
+      }
+    }
+  }, [correctedTotalCost, localUsageData?.total_cost_cents, onUsageCostUpdated]);
 
   // 检测是否开启了自定义背景或透明主题
   const hasCustomBackground = !!(config.customBackground?.enabled && config.customBackground?.imageUrl);

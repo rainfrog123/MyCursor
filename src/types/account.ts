@@ -22,6 +22,8 @@ export interface AccountInfo {
   subscription_type?: string;
   subscription_status?: string;
   trial_days_remaining?: number;
+  // 用量费用（单位：cents，来自缓存的用量数据）
+  usage_cost_cents?: number;
   // /api/auth/me 返回的用户信息
   name?: string;
   sub?: string;

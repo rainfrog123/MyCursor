@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { AccountService } from "../services/accountService";
 import { ConfigService } from "../services/configService";
+import { AccountUsageService } from "../services/accountUsageService";
 import type { AccountListResult, AccountInfo } from "../types/account";
 import { performanceMonitor } from "../utils/performance";
 import { safeStorage } from "../utils/safeStorage";
@@ -41,6 +42,27 @@ export const useAccountManagement = () => {
     }
   }, []);
 
+  // 加载账户的用量费用（从缓存）
+  const loadUsageCostsForAccounts = useCallback(async (accounts: AccountInfo[]): Promise<Map<string, number>> => {
+    const costMap = new Map<string, number>();
+    
+    // 并行加载所有账户的用量缓存
+    const promises = accounts.map(async (account) => {
+      try {
+        const cacheResult = await AccountUsageService.loadAccountUsageCache(account.email);
+        if (cacheResult.success && cacheResult.data?.aggregatedData) {
+          const totalCostCents = cacheResult.data.aggregatedData.total_cost_cents || 0;
+          costMap.set(account.email, totalCostCents);
+        }
+      } catch (error) {
+        console.warn(`Failed to load usage cache for ${account.email}:`, error);
+      }
+    });
+
+    await Promise.allSettled(promises);
+    return costMap;
+  }, []);
+
   // 加载账户列表
   const loadAccounts = useCallback(async () => {
     performanceMonitor.start('loadAccounts');
@@ -57,18 +79,34 @@ export const useAccountManagement = () => {
         console.log(`📦 从缓存加载了 ${cacheResult.data.length} 个账户`);
         
         const currentAccount = await AccountService.getCurrentAccount();
+        const cachedAccounts = cacheResult.data.map((acc) => ({
+          ...acc,
+          is_current: currentAccount ? acc.email === currentAccount.email : false,
+        }));
+
         const cachedAccountData: AccountListResult = {
           success: true,
           message: "从缓存加载",
-          accounts: cacheResult.data.map((acc) => ({
-            ...acc,
-            is_current: currentAccount ? acc.email === currentAccount.email : false,
-          })),
+          accounts: cachedAccounts,
           current_account: currentAccount,
         };
         
         setAccountData(cachedAccountData);
         setLoading(false);
+
+        // 后台加载用量费用
+        loadUsageCostsForAccounts(cachedAccounts).then((costMap) => {
+          if (costMap.size > 0) {
+            setAccountData((prev) => {
+              if (!prev?.accounts) return prev;
+              const accountsWithCost = prev.accounts.map((acc) => ({
+                ...acc,
+                usage_cost_cents: costMap.get(acc.email) ?? acc.usage_cost_cents,
+              }));
+              return { ...prev, accounts: accountsWithCost };
+            });
+          }
+        });
       } else {
         setLoading(true);
       }
@@ -107,7 +145,21 @@ export const useAccountManagement = () => {
         hasIncompleteCache = result.accounts.length > 0;
       }
 
-      // 4. 更新为最新数据
+      // 4. 加载用量费用（后台执行，不阻塞主流程）
+      loadUsageCostsForAccounts(finalAccounts).then((costMap) => {
+        if (costMap.size > 0) {
+          setAccountData((prev) => {
+            if (!prev?.accounts) return prev;
+            const accountsWithCost = prev.accounts.map((acc) => ({
+              ...acc,
+              usage_cost_cents: costMap.get(acc.email) ?? acc.usage_cost_cents,
+            }));
+            return { ...prev, accounts: accountsWithCost };
+          });
+        }
+      });
+
+      // 5. 更新为最新数据
       setAccountData({
         ...result,
         accounts: finalAccounts,
@@ -601,6 +653,130 @@ export const useAccountManagement = () => {
     });
   }, [accountData, subscriptionFilter, tagFilter]);
 
+  // 更新单个账户的用量费用
+  const updateAccountUsageCost = useCallback((email: string, usageCostCents: number) => {
+    setAccountData((prev) => {
+      if (!prev?.accounts) return prev;
+      const updatedAccounts = prev.accounts.map((acc) =>
+        acc.email === email ? { ...acc, usage_cost_cents: usageCostCents } : acc
+      );
+      return { ...prev, accounts: updatedAccounts };
+    });
+  }, []);
+
+  // 刷新所有账户的用量数据（从API获取）
+  const refreshAllAccountsUsage = useCallback(async () => {
+    if (!accountData?.accounts || accountData.accounts.length === 0) {
+      return { success: false, message: "没有账户需要刷新用量" };
+    }
+
+    const totalAccounts = accountData.accounts.length;
+    performanceMonitor.start('refreshAllAccountsUsage');
+    console.log(`🚀 开始批量获取 ${totalAccounts} 个账户的用量数据...`);
+
+    setRefreshProgress({ current: 0, total: totalAccounts, isRefreshing: true });
+
+    try {
+      const accounts = accountData.accounts;
+      let refreshedCount = 0;
+      let successCount = 0;
+      let failCount = 0;
+      const updatedCostsMap = new Map<string, number>();
+
+      // 默认日期范围: 02/01 - 05/01
+      const now = new Date();
+      const year = now.getFullYear();
+      const startDate = new Date(year, 1, 1).getTime(); // 2月1日
+      const endDate = new Date(year, 4, 1).getTime();   // 5月1日
+
+      const BATCH_SIZE = concurrentLimit;
+      const batches: AccountInfo[][] = [];
+
+      for (let i = 0; i < accounts.length; i += BATCH_SIZE) {
+        batches.push(accounts.slice(i, i + BATCH_SIZE));
+      }
+
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        const batch = batches[batchIndex];
+        performanceMonitor.start(`refreshUsageBatch-${batchIndex}`);
+
+        const batchPromises = batch.map(async (account) => {
+          try {
+            // 跳过 token 失效的账户
+            if (account.subscription_type === "token_expired") {
+              return { email: account.email, status: 'skipped' as const, cost: 0 };
+            }
+
+            const result = await AccountUsageService.getAccountUsageAndSave(
+              account,
+              startDate,
+              endDate,
+              0
+            );
+
+            if (result.success && result.data) {
+              const totalCost = result.data.aggregatedData.total_cost_cents || 0;
+              return { email: account.email, status: 'ok' as const, cost: totalCost };
+            }
+            return { email: account.email, status: 'error' as const, cost: 0 };
+          } catch (error) {
+            console.error(`获取 ${account.email} 用量失败:`, error);
+            return { email: account.email, status: 'error' as const, cost: 0 };
+          }
+        });
+
+        const batchResults = await Promise.allSettled(batchPromises);
+
+        batchResults.forEach((result) => {
+          if (result.status === 'fulfilled' && result.value) {
+            const v = result.value;
+            if (v.status === 'ok') {
+              successCount++;
+              updatedCostsMap.set(v.email, v.cost);
+            } else if (v.status === 'error') {
+              failCount++;
+            }
+          }
+          refreshedCount++;
+        });
+
+        const batchDuration = performanceMonitor.end(`refreshUsageBatch-${batchIndex}`);
+        console.log(`📦 用量批次 ${batchIndex + 1}/${batches.length} 完成，耗时: ${batchDuration.toFixed(2)}ms`);
+
+        setRefreshProgress({ current: refreshedCount, total: totalAccounts, isRefreshing: true });
+
+        // 实时更新账户费用
+        setAccountData((prevData) => {
+          if (!prevData?.accounts) return prevData;
+          const updatedAccounts = prevData.accounts.map((acc) => {
+            const newCost = updatedCostsMap.get(acc.email);
+            return newCost !== undefined ? { ...acc, usage_cost_cents: newCost } : acc;
+          });
+          return { ...prevData, accounts: updatedAccounts };
+        });
+
+        if (batchIndex < batches.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      const message = `用量刷新完成: 成功 ${successCount}，失败 ${failCount}`;
+      console.log(`✅ ${message}`);
+
+      return { success: failCount === 0, message };
+    } catch (error) {
+      console.error("刷新所有账户用量失败:", error);
+      return { success: false, message: `刷新用量异常: ${error}` };
+    } finally {
+      const totalDuration = performanceMonitor.end('refreshAllAccountsUsage');
+      console.log(`✅ 批量用量刷新完成，总耗时: ${totalDuration.toFixed(2)}ms`);
+
+      setTimeout(() => {
+        setRefreshProgress({ current: 0, total: 0, isRefreshing: false });
+      }, 1500);
+    }
+  }, [accountData, concurrentLimit]);
+
   return {
     accountData,
     loading,
@@ -617,6 +793,7 @@ export const useAccountManagement = () => {
     addAccountToList,
     refreshSingleAccount,
     refreshAllAccounts,
+    refreshAllAccountsUsage,
     removeAccount,
     removeSelectedAccounts,
     refreshSelectedAccounts,
@@ -625,6 +802,7 @@ export const useAccountManagement = () => {
     setSubscriptionFilter,
     setTagFilter,
     setConcurrentLimit,
+    updateAccountUsageCost,
   };
 };
 
