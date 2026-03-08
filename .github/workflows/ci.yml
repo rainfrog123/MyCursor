@@ -3,13 +3,41 @@ name: CI Build (Windows)
 on:
   push:
     branches: ['*']
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+
+# Cancel in-progress runs when a new commit is pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
 
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+
 jobs:
+  # Quick type check first (fails fast)
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx tsc --noEmit
+
   build-windows:
     runs-on: windows-latest
+    needs: typecheck
 
     steps:
       - name: Checkout
@@ -28,13 +56,17 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
-          key: windows-latest
+          key: windows-stable
+          cache-on-failure: true
+          shared-key: windows-ci
 
       - name: Install frontend dependencies
         run: npm ci
 
       - name: Build
         run: npm run tauri:build
+        env:
+          CARGO_INCREMENTAL: 1
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
