@@ -213,6 +213,21 @@ function notif(m,c){{try{{var d=document.getElementById('mc-n')||function(){{var
 /* 订阅信息映射 */
 var SL={{'free':{{t:'Free',c:'#4a89dc',b:'rgba(74,137,220,.12)'}},'pro':{{t:'Pro',c:'#a855f7',b:'rgba(168,85,247,.15)'}},'pro_plus':{{t:'Pro+',c:'#a855f7',b:'rgba(168,85,247,.15)'}},'ultra':{{t:'Ultra',c:'#f59e0b',b:'rgba(245,158,11,.15)'}},'token_expired':{{t:'\u5df2\u5931\u6548',c:'#f48771',b:'rgba(244,135,113,.15)'}}}};
 function SI(s){{return SL[s]||{{t:s||'\u672a\u77e5',c:'#888',b:'rgba(136,136,136,.12)'}}}}
+/* 排序函数（同步主应用设置） */
+function sortAccs(arr){{
+var sf,so;try{{sf=localStorage.getItem('account_sort_field')||'none';so=localStorage.getItem('account_sort_order')||'asc'}}catch(e){{sf='none';so='asc'}}
+if(sf==='none')return arr;
+var subOrd={{'ultra':1,'pro_plus':2,'pro':3,'business':4,'free_trial':5,'free':6,'token_expired':7}};
+return arr.slice().sort(function(a,b){{
+var cmp=0;
+if(sf==='date'){{var da=new Date(a.created_at||0).getTime(),db=new Date(b.created_at||0).getTime();cmp=da-db}}
+else if(sf==='trial'){{var ta=a.trial_days_remaining!=null?a.trial_days_remaining:-1,tb=b.trial_days_remaining!=null?b.trial_days_remaining:-1;cmp=ta-tb}}
+else if(sf==='usage'){{var ua=a.usage_cost_cents||0,ub=b.usage_cost_cents||0;cmp=ua-ub}}
+else if(sf==='email'){{cmp=(a.email||'').localeCompare(b.email||'')}}
+else if(sf==='subscription'){{var sa=subOrd[a.subscription_type||'free']||99,sb=subOrd[b.subscription_type||'free']||99;cmp=sa-sb}}
+return so==='asc'?cmp:-cmp;
+}});
+}}
 /* 浮动按钮（可拖动） */
 function mkBtn(){{if(document.getElementById('mc-btn'))return;
 var b=document.createElement('div');b.id='mc-btn';
@@ -231,7 +246,7 @@ function fetchPick(){{
 (async function(){{try{{
 var r=await fetch('http://127.0.0.1:'+PORT+'/api/accounts');
 var d=await r.json();
-if(d.code===0&&d.data&&d.data.length)pick(d.data);
+if(d.code===0&&d.data&&d.data.length)pick(sortAccs(d.data));
 else notif('\u6ca1\u6709\u53ef\u7528\u8d26\u53f7','#f48771');
 }}catch(e){{notif('\u8fde\u63a5\u5931\u8d25: '+(e.message||e),'#f48771');console.error('[MyCursor] fetch error',e)}}}})()}}
 /* 创建筛选药丸 */
