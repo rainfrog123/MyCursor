@@ -55,10 +55,8 @@ export const AccountManagePage: React.FC = () => {
     sortOrder,
     sortOptions,
     loadAccounts,
-    refreshCurrentAccount,
     addAccountToList,
     refreshSingleAccount,
-    refreshAllAccounts,
     refreshAllAccountsUsage,
     removeAccount,
     removeSelectedAccounts,
@@ -74,6 +72,8 @@ export const AccountManagePage: React.FC = () => {
     isStashed,
     stashAccount,
     unstashAccount,
+    stashSelectedAccounts,
+    unstashSelectedAccounts,
   } = useAccountManagement();
 
   // UI 状态
@@ -115,37 +115,8 @@ export const AccountManagePage: React.FC = () => {
     cursorAction: "restart" | "close_only" | "none";
   }>({ show: false, account: null, resetMachineId: true, machineIdOption: "bound", cursorAction: "close_only" });
 
-  // 代理状态
-  const [proxyEnabled, setProxyEnabled] = useState(false);
-
   // 事件监听器清理函数引用
   const cleanupListenersRef = useRef<(() => void) | null>(null);
-
-  // 加载代理设置
-  useEffect(() => {
-    invoke('get_proxy_settings').then((settings: any) => {
-      setProxyEnabled(settings?.enabled ?? false);
-    }).catch(err => {
-      console.warn('Failed to load proxy settings:', err);
-    });
-  }, []);
-
-  // 切换代理
-  const handleProxyToggle = useCallback(async () => {
-    try {
-      const currentSettings: any = await invoke('get_proxy_settings');
-      const newEnabled = !proxyEnabled;
-      await invoke('save_proxy_settings', {
-        settings: { ...currentSettings, enabled: newEnabled }
-      });
-      await invoke('rebuild_http_client_cmd');
-      setProxyEnabled(newEnabled);
-      setToast({ message: newEnabled ? "代理已启用 (127.0.0.1:7890)" : "代理已禁用", type: "success" });
-    } catch (error) {
-      console.error('Failed to toggle proxy:', error);
-      setToast({ message: "代理切换失败", type: "error" });
-    }
-  }, [proxyEnabled]);
 
   // 组件挂载时加载账户列表
   useEffect(() => {
@@ -494,43 +465,29 @@ export const AccountManagePage: React.FC = () => {
     }
   }, [addAccountToList, confirmDialog]);
 
-  const handleRefreshCurrentAccount = useCallback(async () => {
-    const result = await refreshCurrentAccount();
-    if (result.success && result.currentAccount) {
-      setToast({ message: `当前账号: ${result.currentAccount.email}`, type: "success" });
-    } else {
-      setToast({ message: "未检测到当前登录账号", type: "error" });
-    }
-  }, [refreshCurrentAccount]);
-
-  // 智能刷新：如果有选中账户则刷新选中的，否则刷新全部
+  // 刷新选中的账户（订阅信息 + 用量数据）
   const handleRefreshAll = useCallback(async () => {
-    if (selectedAccounts.size > 0) {
-      // 刷新选中的账户订阅信息
-      const result = await refreshSelectedAccounts();
-      if (result.success) {
-        setToast({ message: result.message || `已刷新 ${selectedAccounts.size} 个账户`, type: "success" });
-      } else {
-        setToast({ message: result.message || "刷新失败", type: "error" });
-      }
-    } else {
-      // 刷新所有账户订阅信息
-      const accountResult = await refreshAllAccounts();
-      if (!accountResult.success) {
-        setToast({ message: accountResult.message || "刷新账户信息失败", type: "error" });
-        return;
-      }
-      
-      // 然后刷新所有账户的用量数据
-      setToast({ message: "账户信息已刷新，正在获取用量数据...", type: "success" });
-      const usageResult = await refreshAllAccountsUsage();
-      if (usageResult.success) {
-        setToast({ message: "所有账户信息和用量数据已刷新", type: "success" });
-      } else {
-        setToast({ message: usageResult.message || "用量数据刷新失败", type: "error" });
-      }
+    if (selectedAccounts.size === 0) {
+      setToast({ message: "请先选择要刷新的账户", type: "error" });
+      return;
     }
-  }, [selectedAccounts, refreshSelectedAccounts, refreshAllAccounts, refreshAllAccountsUsage]);
+    
+    // 刷新选中账户的订阅信息
+    const result = await refreshSelectedAccounts();
+    if (!result.success) {
+      setToast({ message: result.message || "刷新失败", type: "error" });
+      return;
+    }
+    
+    // 然后刷新选中账户的用量数据
+    setToast({ message: "订阅信息已刷新，正在获取用量数据...", type: "success" });
+    const usageResult = await refreshAllAccountsUsage();
+    if (usageResult.success) {
+      setToast({ message: `已刷新 ${selectedAccounts.size} 个账户的订阅和用量数据`, type: "success" });
+    } else {
+      setToast({ message: usageResult.message || "用量数据刷新失败", type: "error" });
+    }
+  }, [selectedAccounts, refreshSelectedAccounts, refreshAllAccountsUsage]);
 
   // 删除选中的账户
   const handleDeleteSelected = useCallback(async () => {
@@ -585,6 +542,34 @@ export const AccountManagePage: React.FC = () => {
       setToast({ message: result.message || "取消隐藏失败", type: "error" });
     }
   }, [unstashAccount]);
+
+  // 批量隐藏选中账户
+  const handleStashSelected = useCallback(async () => {
+    if (selectedAccounts.size === 0) {
+      setToast({ message: "请先选择要隐藏的账户", type: "error" });
+      return;
+    }
+    const result = await stashSelectedAccounts();
+    if (result.success) {
+      setToast({ message: result.message, type: "success" });
+    } else {
+      setToast({ message: result.message || "批量隐藏失败", type: "error" });
+    }
+  }, [selectedAccounts.size, stashSelectedAccounts]);
+
+  // 批量显示选中账户
+  const handleUnstashSelected = useCallback(async () => {
+    if (selectedAccounts.size === 0) {
+      setToast({ message: "请先选择要显示的账户", type: "error" });
+      return;
+    }
+    const result = await unstashSelectedAccounts();
+    if (result.success) {
+      setToast({ message: result.message, type: "success" });
+    } else {
+      setToast({ message: result.message || "批量显示失败", type: "error" });
+    }
+  }, [selectedAccounts.size, unstashSelectedAccounts]);
 
   // 渲染账号卡片的函数（用于虚拟滚动）
   const renderAccountCard = useCallback((account: AccountInfo, index: number) => {
@@ -730,8 +715,8 @@ export const AccountManagePage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleRefreshAll}
-                disabled={refreshProgress.isRefreshing}
-                style={getButtonStyle('success', refreshProgress.isRefreshing)}
+                disabled={refreshProgress.isRefreshing || selectedAccounts.size === 0}
+                style={getButtonStyle('success', refreshProgress.isRefreshing || selectedAccounts.size === 0)}
                 onMouseEnter={(e) => {
                   if (!e.currentTarget.disabled) {
                     e.currentTarget.style.transform = 'translateY(-1px)';
@@ -776,6 +761,44 @@ export const AccountManagePage: React.FC = () => {
               </button>
               <button
                 type="button"
+                onClick={handleStashSelected}
+                disabled={selectedAccounts.size === 0}
+                style={getButtonStyle('secondary', selectedAccounts.size === 0)}
+                onMouseEnter={(e) => {
+                  if (!e.currentTarget.disabled) {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = 'var(--shadow-medium)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'var(--shadow-light)';
+                }}
+              >
+                <Icon name="eye-off" size={14} style={{ marginRight: '4px' }} />
+                隐藏{selectedAccounts.size > 0 && ` (${selectedAccounts.size})`}
+              </button>
+              <button
+                type="button"
+                onClick={handleUnstashSelected}
+                disabled={selectedAccounts.size === 0}
+                style={getButtonStyle('secondary', selectedAccounts.size === 0)}
+                onMouseEnter={(e) => {
+                  if (!e.currentTarget.disabled) {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = 'var(--shadow-medium)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'var(--shadow-light)';
+                }}
+              >
+                <Icon name="eye" size={14} style={{ marginRight: '4px' }} />
+                显示{selectedAccounts.size > 0 && ` (${selectedAccounts.size})`}
+              </button>
+              <button
+                type="button"
                 onClick={handleExportSelectedAccounts}
                 disabled={selectedAccounts.size === 0}
                 style={getButtonStyle('primary', selectedAccounts.size === 0)}
@@ -808,46 +831,6 @@ export const AccountManagePage: React.FC = () => {
               >
                 <Icon name="import" size={14} style={{ marginRight: '4px' }} />
                 导入
-              </button>
-              <button
-                type="button"
-                onClick={handleRefreshCurrentAccount}
-                style={getButtonStyle('secondary')}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow = 'var(--shadow-medium)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'var(--shadow-light)';
-                }}
-              >
-                <Icon name="refresh" size={14} style={{ marginRight: '4px' }} />
-                刷新当前账号
-              </button>
-
-              {/* 代理切换按钮 */}
-              <button
-                type="button"
-                onClick={handleProxyToggle}
-                style={{
-                  ...getButtonStyle('secondary'),
-                  backgroundColor: proxyEnabled ? 'rgba(16, 185, 129, 0.15)' : undefined,
-                  borderColor: proxyEnabled ? '#10b981' : undefined,
-                  color: proxyEnabled ? '#10b981' : undefined,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow = 'var(--shadow-medium)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'var(--shadow-light)';
-                }}
-                title="代理: 127.0.0.1:7890 (Clash)"
-              >
-                <Icon name="globe" size={14} style={{ marginRight: '4px' }} />
-                {proxyEnabled ? "代理开" : "代理关"}
               </button>
             </div>
 

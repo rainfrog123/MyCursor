@@ -969,6 +969,62 @@ export const useAccountManagement = () => {
     }
   }, [accountData]);
 
+  // Batch stash selected accounts
+  const stashSelectedAccounts = useCallback(async () => {
+    if (selectedAccounts.size === 0) {
+      return { success: false, message: "没有选中的账户" };
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const email of selectedAccounts) {
+      const result = await stashAccount(email);
+      if (result.success) {
+        successCount++;
+      } else {
+        failCount++;
+      }
+    }
+
+    // Clear selection after batch operation
+    setSelectedAccounts(new Set());
+
+    if (failCount === 0) {
+      return { success: true, message: `已隐藏 ${successCount} 个账户` };
+    } else {
+      return { success: false, message: `隐藏完成: 成功 ${successCount} 个, 失败 ${failCount} 个` };
+    }
+  }, [selectedAccounts, stashAccount]);
+
+  // Batch unstash selected accounts
+  const unstashSelectedAccounts = useCallback(async () => {
+    if (selectedAccounts.size === 0) {
+      return { success: false, message: "没有选中的账户" };
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const email of selectedAccounts) {
+      const result = await unstashAccount(email);
+      if (result.success) {
+        successCount++;
+      } else {
+        failCount++;
+      }
+    }
+
+    // Clear selection after batch operation
+    setSelectedAccounts(new Set());
+
+    if (failCount === 0) {
+      return { success: true, message: `已显示 ${successCount} 个账户` };
+    } else {
+      return { success: false, message: `显示完成: 成功 ${successCount} 个, 失败 ${failCount} 个` };
+    }
+  }, [selectedAccounts, unstashAccount]);
+
   return {
     accountData,
     loading,
@@ -1003,6 +1059,8 @@ export const useAccountManagement = () => {
     isStashed,
     stashAccount,
     unstashAccount,
+    stashSelectedAccounts,
+    unstashSelectedAccounts,
   };
 };
 
