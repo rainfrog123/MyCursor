@@ -22,8 +22,6 @@ interface AccountCardProps {
   onViewDashboard: (account: AccountInfo) => void;
   onViewBindCard: (account: AccountInfo) => void;
   onDeleteCursorAccount: (account: AccountInfo) => void;
-  onStash: (email: string) => void;
-  onUnstash: (email: string) => void;
   onToast: (message: string, type: "success" | "error") => void;
 }
 
@@ -46,8 +44,6 @@ export const AccountCard = memo(({
   onViewDashboard,
   onViewBindCard,
   onDeleteCursorAccount,
-  onStash,
-  onUnstash,
   onToast,
 }: AccountCardProps) => {
   // ——— 菜单定位（使用 Portal 渲染，避免父容器裁剪和点击穿透）
@@ -529,42 +525,6 @@ export const AccountCard = memo(({
             >
               <Icon name="edit" size={12} style={{ marginRight: '2px' }} />
               编辑
-            </button>
-
-            {/* 隐藏/取消隐藏按钮 */}
-            <button
-              type="button"
-              onClick={(e) => { 
-                e.stopPropagation(); 
-                onCloseMenu(); 
-                if (isStashed) {
-                  onUnstash(account.email);
-                } else {
-                  onStash(account.email);
-                }
-              }}
-              style={{
-                display: 'inline-flex', alignItems: 'center', padding: '4px 8px', fontSize: '12px', fontWeight: '500',
-                borderRadius: 'var(--border-radius)', 
-                border: isStashed ? '1px solid #10b981' : '1px solid #6b7280', 
-                cursor: 'pointer',
-                transition: 'all var(--transition-duration) ease', 
-                backgroundColor: isStashed ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-secondary)', 
-                color: isStashed ? '#10b981' : 'var(--text-secondary)', 
-                whiteSpace: 'nowrap'
-              }}
-              onMouseEnter={(e) => { 
-                e.currentTarget.style.transform = 'scale(1.05)'; 
-                e.currentTarget.style.backgroundColor = isStashed ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-hover)'; 
-              }}
-              onMouseLeave={(e) => { 
-                e.currentTarget.style.transform = 'scale(1)'; 
-                e.currentTarget.style.backgroundColor = isStashed ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-secondary)'; 
-              }}
-              title={isStashed ? "取消隐藏账户" : "隐藏账户（从默认视图隐藏）"}
-            >
-              <Icon name={isStashed ? "eye" : "eye-off"} size={12} style={{ marginRight: '2px' }} />
-              {isStashed ? "显示" : "隐藏"}
             </button>
 
             {/* 注销 Cursor 账户按钮 */}

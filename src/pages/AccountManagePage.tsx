@@ -69,8 +69,6 @@ export const AccountManagePage: React.FC = () => {
     updateSort,
     // Stash functions
     isStashed,
-    stashAccount,
-    unstashAccount,
     stashSelectedAccounts,
     unstashSelectedAccounts,
   } = useAccountManagement();
@@ -521,26 +519,6 @@ export const AccountManagePage: React.FC = () => {
     return filteredAccounts.every(acc => selectedAccounts.has(acc.email));
   }, [filteredAccounts, selectedAccounts]);
 
-  // 处理隐藏账户
-  const handleStashAccount = useCallback(async (email: string) => {
-    const result = await stashAccount(email);
-    if (result.success) {
-      setToast({ message: "账户已隐藏", type: "success" });
-    } else {
-      setToast({ message: result.message || "隐藏失败", type: "error" });
-    }
-  }, [stashAccount]);
-
-  // 处理取消隐藏账户
-  const handleUnstashAccount = useCallback(async (email: string) => {
-    const result = await unstashAccount(email);
-    if (result.success) {
-      setToast({ message: "账户已显示", type: "success" });
-    } else {
-      setToast({ message: result.message || "取消隐藏失败", type: "error" });
-    }
-  }, [unstashAccount]);
-
   // 批量隐藏选中账户
   const handleStashSelected = useCallback(async () => {
     if (selectedAccounts.size === 0) {
@@ -595,8 +573,6 @@ export const AccountManagePage: React.FC = () => {
         onViewDashboard={handleViewDashboard}
         onViewBindCard={handleViewBindCard}
         onDeleteCursorAccount={handleDeleteCursorAccount}
-        onStash={handleStashAccount}
-        onUnstash={handleUnstashAccount}
         onToast={(message, type) => setToast({ message, type })}
       />
     );
@@ -617,8 +593,6 @@ export const AccountManagePage: React.FC = () => {
     handleViewDashboard,
     handleViewBindCard,
     handleDeleteCursorAccount,
-    handleStashAccount,
-    handleUnstashAccount,
   ]);
 
   if (loading && !accountData) {
