@@ -1248,7 +1248,21 @@ async fn import_accounts(import_file_path: String) -> Result<serde_json::Value, 
     let mut processed_accounts: Vec<serde_json::Value> = Vec::new();
     let mut lookup_count = 0;
     let mut skip_count = 0;
+    let mut dup_count = 0;
     let total = accounts.len();
+    
+    // Load existing accounts to check for duplicates before processing
+    let existing_accounts = AccountManager::load_accounts().unwrap_or_default();
+    let existing_workos_tokens: std::collections::HashSet<String> = existing_accounts
+        .iter()
+        .filter_map(|acc| acc.workos_cursor_session_token.clone())
+        .filter(|t| !t.is_empty())
+        .collect();
+    let existing_emails: std::collections::HashSet<String> = existing_accounts
+        .iter()
+        .filter(|acc| !acc.email.is_empty())
+        .map(|acc| acc.email.clone())
+        .collect();
     
     for (idx, account) in accounts.into_iter().enumerate() {
         let email = account.get("email").and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -1263,6 +1277,20 @@ async fn import_accounts(import_file_path: String) -> Result<serde_json::Value, 
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
+        
+        // Skip if WorkOS token already exists in database
+        if !workos_token.is_empty() && existing_workos_tokens.contains(&workos_token) {
+            log_info!("⏭️ [{}/{}] 跳过重复 WorkOS token", idx + 1, total);
+            dup_count += 1;
+            continue;
+        }
+        
+        // Skip if email already exists in database
+        if !email.is_empty() && existing_emails.contains(&email) {
+            log_info!("⏭️ [{}/{}] 跳过重复邮箱: {}", idx + 1, total, email);
+            dup_count += 1;
+            continue;
+        }
         
         // If workos_session_token exists but email or access_token is missing
         if !workos_token.is_empty() && (email.is_empty() || access_token.is_empty()) {
@@ -1332,9 +1360,16 @@ async fn import_accounts(import_file_path: String) -> Result<serde_json::Value, 
     }
     
     if processed_accounts.is_empty() {
+        let message = if dup_count > 0 {
+            format!("所有 {} 个账户已存在，跳过导入", dup_count)
+        } else if skip_count > 0 {
+            format!("没有有效的账户可导入 (跳过 {} 个无效)", skip_count)
+        } else {
+            "没有有效的账户可导入".to_string()
+        };
         return Ok(serde_json::json!({
-            "success": false,
-            "message": "没有有效的账户可导入"
+            "success": dup_count > 0,
+            "message": message
         }));
     }
     
@@ -1357,8 +1392,8 @@ async fn import_accounts(import_file_path: String) -> Result<serde_json::Value, 
     
     let result = match AccountManager::import_accounts(temp_path.to_string_lossy().to_string()) {
         Ok(message) => {
-            let final_message = if lookup_count > 0 || skip_count > 0 {
-                format!("{} (自动处理 {} 个WorkOS token, 跳过 {} 个无效)", message, lookup_count, skip_count)
+            let final_message = if lookup_count > 0 || skip_count > 0 || dup_count > 0 {
+                format!("{} (自动处理 {} 个, 跳过 {} 个重复, {} 个无效)", message, lookup_count, dup_count, skip_count)
             } else {
                 message
             };

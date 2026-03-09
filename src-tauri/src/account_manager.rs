@@ -1752,7 +1752,7 @@ impl AccountManager {
             log_info!("✅ [DEBUG] Backup created successfully");
         }
 
-        // Merge accounts - add only new accounts (no duplicates by email)
+        // Merge accounts - add only new accounts (no duplicates by email or workos_session_token)
         // 使用 HashSet 优化去重性能：O(n²) -> O(n)
         let mut added_count = 0;
         let mut skipped_count = 0;
@@ -1760,22 +1760,40 @@ impl AccountManager {
         // 构建现有邮箱的 HashSet，时间复杂度 O(n)
         let existing_emails: HashSet<String> = existing_accounts
             .iter()
+            .filter(|acc| !acc.email.is_empty())
             .map(|acc| acc.email.clone())
             .collect();
 
-        log_info!("📊 现有邮箱数量: {}", existing_emails.len());
+        // 构建现有 WorkOS session token 的 HashSet
+        let existing_workos_tokens: HashSet<String> = existing_accounts
+            .iter()
+            .filter_map(|acc| acc.workos_cursor_session_token.clone())
+            .filter(|t| !t.is_empty())
+            .collect();
+
+        log_info!("📊 现有邮箱数量: {}, WorkOS token数量: {}", existing_emails.len(), existing_workos_tokens.len());
 
         // 遍历导入的账户，使用 HashSet 快速查找，时间复杂度 O(n)
         for new_account in imported_accounts {
-            // HashSet 查找是 O(1)，总体时间复杂度 O(n)
-            if existing_emails.contains(&new_account.email) {
-                log_debug!("⏭️ 跳过重复账户: {}", new_account.email);
+            // Check for duplicate email
+            if !new_account.email.is_empty() && existing_emails.contains(&new_account.email) {
+                log_debug!("⏭️ 跳过重复账户 (email): {}", new_account.email);
                 skipped_count += 1;
-            } else {
-                log_info!("✅ 添加新账户: {}", new_account.email);
-                existing_accounts.push(new_account);
-                added_count += 1;
+                continue;
             }
+            
+            // Check for duplicate WorkOS session token
+            if let Some(ref workos_token) = new_account.workos_cursor_session_token {
+                if !workos_token.is_empty() && existing_workos_tokens.contains(workos_token) {
+                    log_debug!("⏭️ 跳过重复账户 (workos_token): {}", new_account.email);
+                    skipped_count += 1;
+                    continue;
+                }
+            }
+            
+            log_info!("✅ 添加新账户: {}", new_account.email);
+            existing_accounts.push(new_account);
+            added_count += 1;
         }
 
         // Save merged accounts
