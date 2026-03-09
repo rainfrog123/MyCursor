@@ -3085,7 +3085,7 @@ async fn save_sort_settings(field: String, order: String) -> Result<serde_json::
     Ok(serde_json::json!({"success": true, "field": field, "order": order}))
 }
 
-/// 启动 Cursor 应用
+/// 启动 Cursor 应用 (以普通用户权限，即使 MyCursor 以管理员运行)
 #[tauri::command]
 async fn launch_cursor() -> Result<serde_json::Value, String> {
     use std::process::Command;
@@ -3110,11 +3110,16 @@ async fn launch_cursor() -> Result<serde_json::Value, String> {
         for path in &paths {
             if path.exists() {
                 log_info!("[启动Cursor] 找到 Cursor: {:?}", path);
-                match Command::new(path).spawn() {
+                // 使用 explorer.exe 启动，这样即使 MyCursor 以管理员运行，
+                // Cursor 也会以普通用户权限启动
+                match Command::new("explorer.exe")
+                    .arg(path)
+                    .spawn()
+                {
                     Ok(_) => {
                         return Ok(serde_json::json!({
                             "success": true,
-                            "message": format!("Cursor 已启动: {}", path.display())
+                            "message": format!("Cursor 已启动 (普通权限): {}", path.display())
                         }));
                     }
                     Err(e) => {
