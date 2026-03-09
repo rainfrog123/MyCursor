@@ -170,9 +170,23 @@ export const AccountManagePage: React.FC = () => {
   // 使用 useCallback 优化回调函数
   const handleAddSuccess = useCallback(async () => {
     setShowAddForm(false);
-    // 添加账号后只更新本地列表，不获取订阅信息
+    
+    // 1. 先更新本地列表
     await addAccountToList("");
-  }, [addAccountToList]);
+    
+    // 2. 找出新添加的账户（没有 subscription_type）并刷新
+    const accountList = await AccountService.getAccountList();
+    if (accountList.success && accountList.accounts) {
+      const accountsToRefresh = accountList.accounts.filter(
+        acc => acc.subscription_type === undefined || acc.subscription_type === null
+      );
+      
+      // 刷新每个新账户
+      for (const acc of accountsToRefresh) {
+        await refreshSingleAccount(acc, 0);
+      }
+    }
+  }, [addAccountToList, refreshSingleAccount]);
 
   const handleEditSuccess = useCallback(async () => {
     setShowEditForm(false);
@@ -447,11 +461,35 @@ export const AccountManagePage: React.FC = () => {
         const result = await AccountService.importAccounts(filePath);
         if (result.success) {
           setToast({
-            message: `${result.message} - 共 ${count} 个账号已添加到列表。💡 请点击"刷新"按钮获取订阅信息`,
+            message: `${result.message} - 正在获取订阅信息...`,
             type: "success"
           });
-          // 导入后只更新本地列表，不获取订阅信息，避免大批量导入时 UI 冻结
+          
+          // 1. 先更新本地列表
           await addAccountToList("");
+          
+          // 2. 获取最新的账户列表，找出需要刷新的账户（没有 subscription_type 的）
+          const accountList = await AccountService.getAccountList();
+          if (accountList.success && accountList.accounts) {
+            const accountsToRefresh = accountList.accounts.filter(
+              acc => acc.subscription_type === undefined || acc.subscription_type === null
+            );
+            
+            if (accountsToRefresh.length > 0) {
+              // 3. 选中这些账户并触发刷新
+              const emailsToRefresh = new Set(accountsToRefresh.map(acc => acc.email));
+              
+              // 直接调用刷新逻辑
+              for (const acc of accountsToRefresh) {
+                await refreshSingleAccount(acc, 0);
+              }
+              
+              setToast({ 
+                message: `导入完成，已刷新 ${accountsToRefresh.length} 个账户的订阅信息`, 
+                type: "success" 
+              });
+            }
+          }
         } else {
           setToast({ message: result.message, type: "error" });
         }
@@ -460,7 +498,7 @@ export const AccountManagePage: React.FC = () => {
         setToast({ message: "导入账户失败", type: "error" });
       }
     }
-  }, [addAccountToList, confirmDialog]);
+  }, [addAccountToList, refreshSingleAccount, confirmDialog]);
 
   // 刷新选中的账户（订阅信息 + 用量数据）
   const handleRefreshAll = useCallback(async () => {
