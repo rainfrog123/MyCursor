@@ -14,7 +14,6 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { AccountService } from "../services/accountService";
 import type { AccountInfo } from "../types/account";
 import type { AggregatedUsageData, UsageEvent } from "../types/usage";
