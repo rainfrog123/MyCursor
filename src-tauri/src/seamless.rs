@@ -109,10 +109,26 @@ pub fn save_sort_settings(field: &str, order: &str) -> Result<(), String> {
 fn handle_accounts() -> tiny_http::Response<io::Cursor<Vec<u8>>> {
     match read_account_cache() {
         Ok(a) => {
+            // Filter out stashed accounts (accounts with "stashed" tag)
+            let filtered: Vec<serde_json::Value> = a
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter(|acc| {
+                            !acc.get("tags")
+                                .and_then(|t| t.as_array())
+                                .map(|tags| tags.iter().any(|t| t.as_str() == Some("stashed")))
+                                .unwrap_or(false)
+                        })
+                        .cloned()
+                        .collect()
+                })
+                .unwrap_or_default();
+
             let sort = read_sort_settings();
             json_resp(200, &serde_json::json!({
                 "code": 0,
-                "data": a,
+                "data": filtered,
                 "sort": {
                     "field": sort.field,
                     "order": sort.order

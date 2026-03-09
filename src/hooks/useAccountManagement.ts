@@ -4,6 +4,7 @@ import { AccountService } from "../services/accountService";
 import { ConfigService } from "../services/configService";
 import { AccountUsageService } from "../services/accountUsageService";
 import type { AccountListResult, AccountInfo } from "../types/account";
+import { STASH_TAG } from "../types/account";
 import { performanceMonitor } from "../utils/performance";
 import { safeStorage } from "../utils/safeStorage";
 
@@ -12,7 +13,8 @@ export const useAccountManagement = () => {
   const [loading, setLoading] = useState(true);
   const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
   const [subscriptionFilter, setSubscriptionFilter] = useState<string>("all");
-  const [tagFilter, setTagFilter] = useState<string>("all");
+  // Default to showing unstashed accounts only
+  const [tagFilter, setTagFilter] = useState<string>("__unstashed__");
   const [sortField, setSortField] = useState<string>(() => {
     return safeStorage.get<string>('account_sort_field', 'usage', true) || 'usage';
   });
@@ -184,7 +186,8 @@ export const useAccountManagement = () => {
   }, []);
 
   // 刷新单个账户（获取订阅信息 + auth/me 用户信息）
-  const refreshSingleAccount = useCallback(async (account: AccountInfo, index: number) => {
+  // Note: index parameter is kept for backward compatibility but not used (we use email lookup instead)
+  const refreshSingleAccount = useCallback(async (account: AccountInfo, _index: number) => {
     performanceMonitor.start(`refreshAccount-${account.email}`);
 
     try {
@@ -212,9 +215,13 @@ export const useAccountManagement = () => {
 
         setAccountData((prevData) => {
           if (!prevData?.accounts) return prevData;
+          // Fix: Use email lookup instead of index to avoid wrong account update when filtered
+          const idx = prevData.accounts.findIndex(a => a.email === account.email);
+          if (idx === -1) return prevData;
+          
           const updatedAccounts = [...prevData.accounts];
-          updatedAccounts[index] = {
-            ...updatedAccounts[index],
+          updatedAccounts[idx] = {
+            ...updatedAccounts[idx],
             subscription_type: authResult.user_info.account_info.subscription_type,
             subscription_status: authResult.user_info.account_info.subscription_status,
             trial_days_remaining: authResult.user_info.account_info.trial_days_remaining,
@@ -237,8 +244,12 @@ export const useAccountManagement = () => {
         const { ConfigService } = await import("../services/configService");
         setAccountData((prevData) => {
           if (!prevData?.accounts) return prevData;
+          // Fix: Use email lookup instead of index
+          const idx = prevData.accounts.findIndex(a => a.email === account.email);
+          if (idx === -1) return prevData;
+          
           const updatedAccounts = [...prevData.accounts];
-          updatedAccounts[index] = { ...updatedAccounts[index], subscription_type: "token_expired" };
+          updatedAccounts[idx] = { ...updatedAccounts[idx], subscription_type: "token_expired" };
           ConfigService.saveAccountCache(updatedAccounts);
           return { ...prevData, accounts: updatedAccounts };
         });
@@ -344,7 +355,8 @@ export const useAccountManagement = () => {
         });
 
         if (batchIndex < batches.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          // Increased delay to avoid API rate limiting
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
 
@@ -615,13 +627,22 @@ export const useAccountManagement = () => {
 
   // 动态生成标签筛选选项
   const tagFilterOptions = useMemo(() => {
-    const options = [{ value: "all", label: "全部标签" }];
+    // Start with unstashed (default) and all options
+    const options = [
+      { value: "__unstashed__", label: "未隐藏" },  // Default: exclude stashed
+      { value: "all", label: "全部标签" },          // Show everything including stashed
+    ];
     if (!accountData?.accounts) return options;
 
     const tags = new Set<string>();
     for (const acc of accountData.accounts) {
       if (acc.tags) {
-        for (const t of acc.tags) tags.add(t);
+        for (const t of acc.tags) {
+          // Don't show "stashed" as a selectable filter option (it's a system tag)
+          if (t !== STASH_TAG) {
+            tags.add(t);
+          }
+        }
       }
     }
     for (const t of Array.from(tags).sort()) {
@@ -650,13 +671,20 @@ export const useAccountManagement = () => {
         }
       }
       // 标签过滤
-      if (tagFilter !== "all") {
+      if (tagFilter === "__unstashed__") {
+        // Default filter: exclude stashed accounts
+        if (account.tags?.includes(STASH_TAG)) return false;
+      } else if (tagFilter !== "all") {
         if (tagFilter === "__untagged__") {
-          if (account.tags && account.tags.length > 0) return false;
+          // Show only accounts without tags (or only with stashed tag)
+          const nonStashTags = account.tags?.filter(t => t !== STASH_TAG) || [];
+          if (nonStashTags.length > 0) return false;
         } else {
+          // Show accounts with specific tag
           if (!account.tags || !account.tags.includes(tagFilter)) return false;
         }
       }
+      // When "all" is selected, show everything including stashed
       return true;
     });
 
@@ -852,6 +880,95 @@ export const useAccountManagement = () => {
     }
   }, [accountData, concurrentLimit]);
 
+  // Check if an account is stashed
+  const isStashed = useCallback((account: AccountInfo) => {
+    return account.tags?.includes(STASH_TAG) ?? false;
+  }, []);
+
+  // Stash an account (add stashed tag)
+  const stashAccount = useCallback(async (email: string) => {
+    try {
+      const account = accountData?.accounts.find(a => a.email === email);
+      if (!account) return { success: false, message: "账户不存在" };
+
+      // Add stashed tag if not already present
+      const currentTags = account.tags || [];
+      if (currentTags.includes(STASH_TAG)) {
+        return { success: true, message: "账户已经被隐藏" };
+      }
+
+      const newTags = [...currentTags, STASH_TAG];
+      const result = await AccountService.editAccount(
+        email,
+        undefined, // newEmail
+        undefined, // newToken
+        undefined, // newRefreshToken
+        undefined, // newWorkosSessionToken
+        undefined, // newUsername
+        newTags    // newTags
+      );
+
+      if (result.success) {
+        // Update local state
+        setAccountData((prevData) => {
+          if (!prevData?.accounts) return prevData;
+          const updatedAccounts = prevData.accounts.map((acc) =>
+            acc.email === email ? { ...acc, tags: newTags } : acc
+          );
+          ConfigService.saveAccountCache(updatedAccounts);
+          return { ...prevData, accounts: updatedAccounts };
+        });
+      }
+
+      return result;
+    } catch (error) {
+      console.error("隐藏账户失败:", error);
+      return { success: false, message: `隐藏失败: ${error}` };
+    }
+  }, [accountData]);
+
+  // Unstash an account (remove stashed tag)
+  const unstashAccount = useCallback(async (email: string) => {
+    try {
+      const account = accountData?.accounts.find(a => a.email === email);
+      if (!account) return { success: false, message: "账户不存在" };
+
+      // Remove stashed tag
+      const currentTags = account.tags || [];
+      if (!currentTags.includes(STASH_TAG)) {
+        return { success: true, message: "账户未被隐藏" };
+      }
+
+      const newTags = currentTags.filter(t => t !== STASH_TAG);
+      const result = await AccountService.editAccount(
+        email,
+        undefined, // newEmail
+        undefined, // newToken
+        undefined, // newRefreshToken
+        undefined, // newWorkosSessionToken
+        undefined, // newUsername
+        newTags    // newTags
+      );
+
+      if (result.success) {
+        // Update local state
+        setAccountData((prevData) => {
+          if (!prevData?.accounts) return prevData;
+          const updatedAccounts = prevData.accounts.map((acc) =>
+            acc.email === email ? { ...acc, tags: newTags } : acc
+          );
+          ConfigService.saveAccountCache(updatedAccounts);
+          return { ...prevData, accounts: updatedAccounts };
+        });
+      }
+
+      return result;
+    } catch (error) {
+      console.error("取消隐藏账户失败:", error);
+      return { success: false, message: `取消隐藏失败: ${error}` };
+    }
+  }, [accountData]);
+
   return {
     accountData,
     loading,
@@ -882,6 +999,10 @@ export const useAccountManagement = () => {
     setConcurrentLimit,
     updateAccountUsageCost,
     updateSort,
+    // Stash functions
+    isStashed,
+    stashAccount,
+    unstashAccount,
   };
 };
 

@@ -10,6 +10,7 @@ interface AccountCardProps {
   isCurrent: boolean;
   isExpanded: boolean;
   isClosing: boolean;
+  isStashed: boolean;
   onSelect: (email: string) => void;
   onRefresh: (account: AccountInfo, index: number) => void;
   onSwitch: (account: AccountInfo) => void;
@@ -21,6 +22,8 @@ interface AccountCardProps {
   onViewDashboard: (account: AccountInfo) => void;
   onViewBindCard: (account: AccountInfo) => void;
   onDeleteCursorAccount: (account: AccountInfo) => void;
+  onStash: (email: string) => void;
+  onUnstash: (email: string) => void;
   onToast: (message: string, type: "success" | "error") => void;
 }
 
@@ -31,6 +34,7 @@ export const AccountCard = memo(({
   isCurrent,
   isExpanded,
   isClosing,
+  isStashed,
   onSelect,
   onRefresh,
   onSwitch,
@@ -42,6 +46,8 @@ export const AccountCard = memo(({
   onViewDashboard,
   onViewBindCard,
   onDeleteCursorAccount,
+  onStash,
+  onUnstash,
   onToast,
 }: AccountCardProps) => {
   // ——— 菜单定位（使用 Portal 渲染，避免父容器裁剪和点击穿透）
@@ -197,21 +203,30 @@ export const AccountCard = memo(({
       className="rounded-lg border transition-colors"
       style={{
         padding: '8px 12px',
-        backgroundColor: isCurrent ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-primary)',
-        borderColor: isCurrent ? 'rgba(16, 185, 129, 0.3)' : 'var(--border-primary)',
+        backgroundColor: isStashed 
+          ? 'rgba(128, 128, 128, 0.05)' 
+          : isCurrent 
+            ? 'rgba(16, 185, 129, 0.1)' 
+            : 'var(--bg-primary)',
+        borderColor: isStashed 
+          ? 'rgba(128, 128, 128, 0.3)' 
+          : isCurrent 
+            ? 'rgba(16, 185, 129, 0.3)' 
+            : 'var(--border-primary)',
+        opacity: isStashed ? 0.7 : 1,
         backdropFilter: 'blur(var(--backdrop-blur))',
         WebkitBackdropFilter: 'blur(var(--backdrop-blur))',
         position: 'relative',
         zIndex: isExpanded ? 10 : 1,
-        overflow: 'visible', // 关键：允许内容溢出卡片边界
+        overflow: 'visible',
       }}
       onMouseEnter={(e) => {
-        if (!isCurrent) {
+        if (!isCurrent && !isStashed) {
           e.currentTarget.style.borderColor = 'var(--border-hover)';
         }
       }}
       onMouseLeave={(e) => {
-        if (!isCurrent) {
+        if (!isCurrent && !isStashed) {
           e.currentTarget.style.borderColor = 'var(--border-primary)';
         }
       }}
@@ -516,6 +531,42 @@ export const AccountCard = memo(({
               编辑
             </button>
 
+            {/* 隐藏/取消隐藏按钮 */}
+            <button
+              type="button"
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                onCloseMenu(); 
+                if (isStashed) {
+                  onUnstash(account.email);
+                } else {
+                  onStash(account.email);
+                }
+              }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', padding: '4px 8px', fontSize: '12px', fontWeight: '500',
+                borderRadius: 'var(--border-radius)', 
+                border: isStashed ? '1px solid #10b981' : '1px solid #6b7280', 
+                cursor: 'pointer',
+                transition: 'all var(--transition-duration) ease', 
+                backgroundColor: isStashed ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-secondary)', 
+                color: isStashed ? '#10b981' : 'var(--text-secondary)', 
+                whiteSpace: 'nowrap'
+              }}
+              onMouseEnter={(e) => { 
+                e.currentTarget.style.transform = 'scale(1.05)'; 
+                e.currentTarget.style.backgroundColor = isStashed ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-hover)'; 
+              }}
+              onMouseLeave={(e) => { 
+                e.currentTarget.style.transform = 'scale(1)'; 
+                e.currentTarget.style.backgroundColor = isStashed ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-secondary)'; 
+              }}
+              title={isStashed ? "取消隐藏账户" : "隐藏账户（从默认视图隐藏）"}
+            >
+              <Icon name={isStashed ? "eye" : "eye-off"} size={12} style={{ marginRight: '2px' }} />
+              {isStashed ? "显示" : "隐藏"}
+            </button>
+
             {/* 注销 Cursor 账户按钮 */}
             <button
               type="button"
@@ -546,6 +597,7 @@ export const AccountCard = memo(({
   if (prevProps.isCurrent !== nextProps.isCurrent) return false;
   if (prevProps.isExpanded !== nextProps.isExpanded) return false;
   if (prevProps.isClosing !== nextProps.isClosing) return false;
+  if (prevProps.isStashed !== nextProps.isStashed) return false;
 
   // 订阅信息变化检查
   if (prevProps.account.subscription_type !== nextProps.account.subscription_type) return false;

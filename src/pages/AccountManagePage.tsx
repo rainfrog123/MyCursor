@@ -14,6 +14,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { AccountService } from "../services/accountService";
 import type { AccountInfo } from "../types/account";
 import type { AggregatedUsageData, UsageEvent } from "../types/usage";
@@ -69,6 +70,10 @@ export const AccountManagePage: React.FC = () => {
     setConcurrentLimit,
     updateAccountUsageCost,
     updateSort,
+    // Stash functions
+    isStashed,
+    stashAccount,
+    unstashAccount,
   } = useAccountManagement();
 
   // UI 状态
@@ -110,8 +115,37 @@ export const AccountManagePage: React.FC = () => {
     cursorAction: "restart" | "close_only" | "none";
   }>({ show: false, account: null, resetMachineId: true, machineIdOption: "bound", cursorAction: "close_only" });
 
+  // 代理状态
+  const [proxyEnabled, setProxyEnabled] = useState(false);
+
   // 事件监听器清理函数引用
   const cleanupListenersRef = useRef<(() => void) | null>(null);
+
+  // 加载代理设置
+  useEffect(() => {
+    invoke('get_proxy_settings').then((settings: any) => {
+      setProxyEnabled(settings?.enabled ?? false);
+    }).catch(err => {
+      console.warn('Failed to load proxy settings:', err);
+    });
+  }, []);
+
+  // 切换代理
+  const handleProxyToggle = useCallback(async () => {
+    try {
+      const currentSettings: any = await invoke('get_proxy_settings');
+      const newEnabled = !proxyEnabled;
+      await invoke('save_proxy_settings', {
+        settings: { ...currentSettings, enabled: newEnabled }
+      });
+      await invoke('rebuild_http_client_cmd');
+      setProxyEnabled(newEnabled);
+      setToast({ message: newEnabled ? "代理已启用 (127.0.0.1:7890)" : "代理已禁用", type: "success" });
+    } catch (error) {
+      console.error('Failed to toggle proxy:', error);
+      setToast({ message: "代理切换失败", type: "error" });
+    }
+  }, [proxyEnabled]);
 
   // 组件挂载时加载账户列表
   useEffect(() => {
@@ -532,6 +566,26 @@ export const AccountManagePage: React.FC = () => {
            accountData.accounts.length > 0;
   }, [accountData, selectedAccounts.size]);
 
+  // 处理隐藏账户
+  const handleStashAccount = useCallback(async (email: string) => {
+    const result = await stashAccount(email);
+    if (result.success) {
+      setToast({ message: "账户已隐藏", type: "success" });
+    } else {
+      setToast({ message: result.message || "隐藏失败", type: "error" });
+    }
+  }, [stashAccount]);
+
+  // 处理取消隐藏账户
+  const handleUnstashAccount = useCallback(async (email: string) => {
+    const result = await unstashAccount(email);
+    if (result.success) {
+      setToast({ message: "账户已显示", type: "success" });
+    } else {
+      setToast({ message: result.message || "取消隐藏失败", type: "error" });
+    }
+  }, [unstashAccount]);
+
   // 渲染账号卡片的函数（用于虚拟滚动）
   const renderAccountCard = useCallback((account: AccountInfo, index: number) => {
     const isCurrent = Boolean(accountData?.current_account && 
@@ -546,6 +600,7 @@ export const AccountManagePage: React.FC = () => {
         isCurrent={isCurrent}
         isExpanded={expandedAccountEmail === account.email}
         isClosing={closingAccountEmail === account.email}
+        isStashed={isStashed(account)}
         onSelect={toggleAccountSelection}
         onRefresh={handleRefreshAccount}
         onSwitch={handleSwitchAccount}
@@ -557,6 +612,8 @@ export const AccountManagePage: React.FC = () => {
         onViewDashboard={handleViewDashboard}
         onViewBindCard={handleViewBindCard}
         onDeleteCursorAccount={handleDeleteCursorAccount}
+        onStash={handleStashAccount}
+        onUnstash={handleUnstashAccount}
         onToast={(message, type) => setToast({ message, type })}
       />
     );
@@ -565,6 +622,7 @@ export const AccountManagePage: React.FC = () => {
     selectedAccounts,
     expandedAccountEmail,
     closingAccountEmail,
+    isStashed,
     toggleAccountSelection,
     handleRefreshAccount,
     handleSwitchAccount,
@@ -576,6 +634,8 @@ export const AccountManagePage: React.FC = () => {
     handleViewDashboard,
     handleViewBindCard,
     handleDeleteCursorAccount,
+    handleStashAccount,
+    handleUnstashAccount,
   ]);
 
   if (loading && !accountData) {
@@ -764,6 +824,30 @@ export const AccountManagePage: React.FC = () => {
               >
                 <Icon name="refresh" size={14} style={{ marginRight: '4px' }} />
                 刷新当前账号
+              </button>
+
+              {/* 代理切换按钮 */}
+              <button
+                type="button"
+                onClick={handleProxyToggle}
+                style={{
+                  ...getButtonStyle('secondary'),
+                  backgroundColor: proxyEnabled ? 'rgba(16, 185, 129, 0.15)' : undefined,
+                  borderColor: proxyEnabled ? '#10b981' : undefined,
+                  color: proxyEnabled ? '#10b981' : undefined,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = 'var(--shadow-medium)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'var(--shadow-light)';
+                }}
+                title="代理: 127.0.0.1:7890 (Clash)"
+              >
+                <Icon name="globe" size={14} style={{ marginRight: '4px' }} />
+                {proxyEnabled ? "代理开" : "代理关"}
               </button>
             </div>
 

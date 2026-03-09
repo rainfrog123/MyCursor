@@ -878,7 +878,7 @@ impl AuthChecker {
         team_id: i32,
         details: &mut Vec<String>,
     ) -> Result<Option<AggregatedUsageData>> {
-        let client = reqwest::Client::new();
+        let client = crate::get_http_client();
         log_debug!("🔍 正在获取聚合用量数据...");
 
         let mut headers = Self::build_cursor_dashboard_headers()?;
@@ -1287,7 +1287,7 @@ impl AuthChecker {
         _checksum: &str,
         details: &mut Vec<String>,
     ) -> Result<Option<AccountInfo>> {
-        let client = reqwest::Client::new();
+        let client = crate::get_http_client();
 
         let mut account_info = AccountInfo {
             email: None,
@@ -1646,8 +1646,8 @@ impl AuthChecker {
             }
         };
 
-        // Create HTTP client
-        let client = reqwest::Client::new();
+        // Use centralized HTTP client with proxy support
+        let client = crate::get_http_client();
 
         // Create request headers
         let mut headers = reqwest::header::HeaderMap::new();
@@ -1671,7 +1671,6 @@ impl AuthChecker {
             )
             .headers(headers)
             .body(vec![]) // Empty body
-            .timeout(std::time::Duration::from_secs(40))
             .send()
             .await;
 
@@ -1807,8 +1806,8 @@ impl AuthChecker {
             }
         };
 
-        // Create HTTP client
-        let client = reqwest::Client::new();
+        // Use centralized HTTP client with proxy support
+        let client = crate::get_http_client();
 
         // Create request headers
         let mut headers = reqwest::header::HeaderMap::new();
@@ -1832,7 +1831,6 @@ impl AuthChecker {
             )
             .headers(headers)
             .body(vec![]) // Empty body
-            .timeout(std::time::Duration::from_secs(40))
             .send()
             .await;
 

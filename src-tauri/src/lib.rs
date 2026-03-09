@@ -14,7 +14,129 @@ use serde_json;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{OnceLock, RwLock};
 use tauri::{Emitter, Manager};
+
+// ============================================================================
+// Proxy Settings and HTTP Client
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProxySettings {
+    pub enabled: bool,
+    pub proxy_type: String, // "http" or "socks5"
+    pub host: String,
+    pub port: u16,
+}
+
+impl Default for ProxySettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            proxy_type: "http".to_string(),
+            host: "127.0.0.1".to_string(),
+            port: 7890,
+        }
+    }
+}
+
+fn get_proxy_settings_file_path() -> Result<PathBuf, String> {
+    get_data_dir().map(|dir| dir.join("proxy_settings.json"))
+}
+
+pub fn load_proxy_settings() -> Result<ProxySettings, String> {
+    let path = get_proxy_settings_file_path()?;
+    if !path.exists() {
+        return Ok(ProxySettings::default());
+    }
+    let content = fs::read_to_string(&path).map_err(|e| format!("读取代理设置失败: {}", e))?;
+    serde_json::from_str(&content).map_err(|e| format!("解析代理设置失败: {}", e))
+}
+
+pub fn save_proxy_settings_to_file(settings: &ProxySettings) -> Result<(), String> {
+    let path = get_proxy_settings_file_path()?;
+    let json = serde_json::to_string_pretty(settings).map_err(|e| format!("序列化代理设置失败: {}", e))?;
+    fs::write(&path, json).map_err(|e| format!("保存代理设置失败: {}", e))?;
+    log_info!("[代理设置] 已保存: enabled={}, type={}, {}:{}", 
+        settings.enabled, settings.proxy_type, settings.host, settings.port);
+    Ok(())
+}
+
+// Global HTTP client with proxy support
+static HTTP_CLIENT: OnceLock<RwLock<reqwest::Client>> = OnceLock::new();
+
+fn build_http_client_with_proxy() -> reqwest::Client {
+    let settings = load_proxy_settings().unwrap_or_default();
+    
+    let mut builder = reqwest::Client::builder()
+        .pool_max_idle_per_host(10)
+        .timeout(std::time::Duration::from_secs(30))
+        .connect_timeout(std::time::Duration::from_secs(10));
+    
+    if settings.enabled {
+        let proxy_url = match settings.proxy_type.as_str() {
+            "socks5" => format!("socks5://{}:{}", settings.host, settings.port),
+            _ => format!("http://{}:{}", settings.host, settings.port),
+        };
+        
+        match reqwest::Proxy::all(&proxy_url) {
+            Ok(proxy) => {
+                builder = builder.proxy(proxy);
+                log_info!("[代理] 已启用: {}", proxy_url);
+            }
+            Err(e) => {
+                log_error!("[代理] 设置失败: {}", e);
+            }
+        }
+    }
+    
+    builder.build().unwrap_or_else(|e| {
+        log_error!("[HTTP客户端] 构建失败: {}, 使用默认客户端", e);
+        reqwest::Client::new()
+    })
+}
+
+pub fn get_http_client() -> reqwest::Client {
+    let lock = HTTP_CLIENT.get_or_init(|| {
+        RwLock::new(build_http_client_with_proxy())
+    });
+    lock.read().unwrap().clone()
+}
+
+pub fn rebuild_http_client() {
+    if let Some(lock) = HTTP_CLIENT.get() {
+        if let Ok(mut client) = lock.write() {
+            *client = build_http_client_with_proxy();
+            log_info!("[HTTP客户端] 已重建");
+        }
+    } else {
+        // Initialize if not yet created
+        let _ = get_http_client();
+    }
+}
+
+#[tauri::command]
+async fn get_proxy_settings() -> Result<ProxySettings, String> {
+    load_proxy_settings()
+}
+
+#[tauri::command]
+async fn save_proxy_settings(settings: ProxySettings) -> Result<serde_json::Value, String> {
+    save_proxy_settings_to_file(&settings)?;
+    Ok(serde_json::json!({
+        "success": true,
+        "message": "代理设置已保存"
+    }))
+}
+
+#[tauri::command]
+async fn rebuild_http_client_cmd() -> Result<serde_json::Value, String> {
+    rebuild_http_client();
+    Ok(serde_json::json!({
+        "success": true,
+        "message": "HTTP客户端已重建"
+    }))
+}
 
 // 日志宏现在在logger.rs中定义
 
@@ -1133,7 +1255,7 @@ async fn open_bind_card_info(
 
     log_info!("🔗 获取 Stripe 订阅管理链接...");
 
-    let client = reqwest::Client::new();
+    let client = get_http_client();
     let resp = client
         .get("https://cursor.com/api/stripeSession")
         .header("Cookie", &cookie)
@@ -1226,8 +1348,8 @@ async fn delete_cursor_account(
     headers.insert("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36".parse().unwrap());
     headers.insert("Cookie", cookie.parse().map_err(|e| format!("Invalid cookie: {}", e))?);
 
-    // 创建 HTTP 客户端
-    let client = reqwest::Client::new();
+    // 使用全局 HTTP 客户端
+    let client = get_http_client();
 
     // 发送请求
     match client
@@ -1349,8 +1471,8 @@ async fn trigger_authorization_login(
         HeaderValue::from_str(&cookie_value).map_err(|e| format!("Invalid cookie value: {}", e))?,
     );
 
-    // 创建 HTTP 客户端
-    let client = reqwest::Client::new();
+    // 使用全局 HTTP 客户端
+    let client = get_http_client();
 
     let payload = serde_json::json!({
         "challenge": challenge,
@@ -1457,8 +1579,8 @@ async fn trigger_authorization_login_poll(
     headers.insert("Sec-Fetch-Site", HeaderValue::from_static("same-origin"));
     headers.insert("User-Agent", HeaderValue::from_static("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"));
 
-    // 创建 HTTP 客户端
-    let client = reqwest::Client::new();
+    // 使用全局 HTTP 客户端
+    let client = get_http_client();
 
     // 发送请求
     match client
@@ -2775,7 +2897,7 @@ async fn launch_cursor() -> Result<serde_json::Value, String> {
 /// 通过 session token 调用 /api/auth/me 获取用户详细信息
 #[tauri::command]
 async fn get_auth_me(session_token: String) -> Result<serde_json::Value, String> {
-    let client = reqwest::Client::new();
+    let client = get_http_client();
 
     let cookie_value = format!("WorkosCursorSessionToken={}", session_token);
 
@@ -2923,7 +3045,10 @@ pub fn run() {
             inject_seamless,
             restore_seamless,
             get_seamless_status,
-            save_sort_settings
+            save_sort_settings,
+            get_proxy_settings,
+            save_proxy_settings,
+            rebuild_http_client_cmd
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

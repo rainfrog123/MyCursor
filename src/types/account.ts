@@ -1,3 +1,6 @@
+// Reserved tag for stashing accounts (hidden by default)
+export const STASH_TAG = "stashed";
+
 export interface MachineIds {
   "telemetry.devDeviceId": string;
   "telemetry.macMachineId": string;

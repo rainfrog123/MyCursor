@@ -31,6 +31,8 @@ import {
   IconTag,
   IconArrowsExchange,
   IconEye,
+  IconEyeOff,
+  IconWorld,
   IconAlertCircle,
   IconInfoCircle,
   IconCircleCheck,
@@ -78,6 +80,8 @@ export type IconName =
   | 'tag'
   | 'arrows-exchange'
   | 'eye'
+  | 'eye-off'
+  | 'globe'
   | 'alert'
   | 'info'
   | 'success'
@@ -133,6 +137,8 @@ const iconMap = {
   tag: IconTag,
   'arrows-exchange': IconArrowsExchange,
   eye: IconEye,
+  'eye-off': IconEyeOff,
+  globe: IconWorld,
   alert: IconAlertCircle,
   info: IconInfoCircle,
   success: IconCircleCheck,
