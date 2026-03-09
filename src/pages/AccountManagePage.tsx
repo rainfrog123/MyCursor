@@ -110,7 +110,7 @@ export const AccountManagePage: React.FC = () => {
     resetMachineId: boolean;
     machineIdOption: "bound" | "new";
     cursorAction: "restart" | "close_only" | "none";
-  }>({ show: false, account: null, resetMachineId: true, machineIdOption: "bound", cursorAction: "restart" });
+  }>({ show: false, account: null, resetMachineId: true, machineIdOption: "new", cursorAction: "restart" });
 
   // 事件监听器清理函数引用
   const cleanupListenersRef = useRef<(() => void) | null>(null);
@@ -194,7 +194,7 @@ export const AccountManagePage: React.FC = () => {
       show: true,
       account,
       resetMachineId: true,
-      machineIdOption: account.machine_ids ? "bound" : "new",
+      machineIdOption: "new",
       cursorAction: "restart",
     });
   }, []);
