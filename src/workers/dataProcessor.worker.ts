@@ -73,7 +73,7 @@ function parseAccounts(jsonString: string): {
       }
     }
 
-    const accounts: AccountInfo[] = parsed.map((item, index) => {
+    const accounts: AccountInfo[] = parsed.map((item: Record<string, unknown>, index: number) => {
       // Support alternative field names
       const token = item.token || item.accessToken || item.access_token || '';
       const email = item.email || '';

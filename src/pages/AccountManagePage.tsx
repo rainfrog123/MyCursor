@@ -456,7 +456,7 @@ export const AccountManagePage: React.FC = () => {
       setToast({ message: "导入账户失败", type: "error" });
     }
 
-    async function performImport(filePath: string, count: number) {
+    async function performImport(filePath: string, _count: number) {
       try {
         const result = await AccountService.importAccounts(filePath);
         if (result.success) {
@@ -476,9 +476,6 @@ export const AccountManagePage: React.FC = () => {
             );
             
             if (accountsToRefresh.length > 0) {
-              // 3. 选中这些账户并触发刷新
-              const emailsToRefresh = new Set(accountsToRefresh.map(acc => acc.email));
-              
               // 直接调用刷新逻辑
               for (const acc of accountsToRefresh) {
                 await refreshSingleAccount(acc, 0);
