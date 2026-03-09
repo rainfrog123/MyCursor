@@ -429,8 +429,10 @@ export const EventBasedUsageChart: React.FC<EventBasedUsageChartProps> = memo(({
             name="总费用"
             stroke="#000000"
             strokeWidth={3}
-            dot={false}
+            dot={chartData.data.length <= 20}
             activeDot={{ r: 6 }}
+            connectNulls={true}
+            isAnimationActive={false}
           />
 
           {/* 各模型的累计费用折线 */}
@@ -442,8 +444,10 @@ export const EventBasedUsageChart: React.FC<EventBasedUsageChartProps> = memo(({
               name={modelName}
               stroke={MODEL_COLORS[index % MODEL_COLORS.length]}
               strokeWidth={2}
-              dot={false}
+              dot={chartData.data.length <= 20}
               activeDot={{ r: 5 }}
+              connectNulls={true}
+              isAnimationActive={false}
             />
           ))}
         </LineChart>
