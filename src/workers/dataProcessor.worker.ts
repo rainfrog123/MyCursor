@@ -59,27 +59,36 @@ function parseAccounts(jsonString: string): {
   error?: string;
 } {
   try {
-    const parsed = JSON.parse(jsonString);
+    let parsed = JSON.parse(jsonString);
     
+    // Support single object (wrap in array)
     if (!Array.isArray(parsed)) {
-      return {
-        success: false,
-        error: '数据格式错误：应为数组',
-      };
+      if (typeof parsed === 'object' && parsed !== null) {
+        parsed = [parsed];
+      } else {
+        return {
+          success: false,
+          error: '数据格式错误：应为数组或对象',
+        };
+      }
     }
 
     const accounts: AccountInfo[] = parsed.map((item, index) => {
-      if (!item.email || !item.token) {
-        throw new Error(`第 ${index + 1} 个账号缺少必需字段 (email 或 token)`);
+      // Support alternative field names: accessToken -> token
+      const token = item.token || item.accessToken;
+      const email = item.email;
+      
+      if (!email || !token) {
+        throw new Error(`第 ${index + 1} 个账号缺少必需字段 (email 或 token/accessToken)`);
       }
 
       return {
-        email: item.email,
-        token: item.token,
-        refresh_token: item.refresh_token || null,
-        workos_cursor_session_token: item.workos_cursor_session_token || null,
-        is_current: item.is_current || false,
-        created_at: item.created_at || new Date().toISOString(),
+        email: email,
+        token: token,
+        refresh_token: item.refresh_token || item.refreshToken || null,
+        workos_cursor_session_token: item.workos_cursor_session_token || item.workosCursorSessionToken || null,
+        is_current: item.is_current || item.isCurrent || false,
+        created_at: item.created_at || item.createdAt || new Date().toISOString(),
         username: item.username || null,
       };
     });

@@ -15,10 +15,15 @@ use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVAT
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountInfo {
     pub email: String,
+    #[serde(alias = "accessToken")]
     pub token: String,
+    #[serde(alias = "refreshToken")]
     pub refresh_token: Option<String>,
+    #[serde(alias = "workosCursorSessionToken")]
     pub workos_cursor_session_token: Option<String>,
+    #[serde(default, alias = "isCurrent")]
     pub is_current: bool,
+    #[serde(default = "default_created_at", alias = "createdAt")]
     pub created_at: String,
     pub username: Option<String>,
     #[serde(default)]
@@ -41,6 +46,10 @@ pub struct AccountInfo {
     pub picture: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_id: Option<i64>,
+}
+
+fn default_created_at() -> String {
+    chrono::Utc::now().to_rfc3339()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1710,8 +1719,17 @@ impl AccountManager {
         let import_content = fs::read_to_string(&import_path)
             .map_err(|e| anyhow!("Failed to read import file: {}", e))?;
 
-        let imported_accounts: Vec<AccountInfo> = serde_json::from_str(&import_content)
-            .map_err(|e| anyhow!("Invalid account file format: {}", e))?;
+        // Try parsing as array first, then as single object
+        let imported_accounts: Vec<AccountInfo> = match serde_json::from_str::<Vec<AccountInfo>>(&import_content) {
+            Ok(accounts) => accounts,
+            Err(_) => {
+                // Try parsing as single object
+                match serde_json::from_str::<AccountInfo>(&import_content) {
+                    Ok(account) => vec![account],
+                    Err(e) => return Err(anyhow!("Invalid account file format: {}", e)),
+                }
+            }
+        };
 
         log_info!("📥 准备导入 {} 个账户", imported_accounts.len());
 
