@@ -616,10 +616,11 @@ export const useAccountManagement = () => {
 
   // 动态生成标签筛选选项
   const tagFilterOptions = useMemo(() => {
-    // Start with unstashed (default) and all options
+    // Start with default (exclude hidden) and all options
     const options = [
-      { value: "__unstashed__", label: "未隐藏" },  // Default: exclude stashed
-      { value: "all", label: "全部标签" },          // Show everything including stashed
+      { value: "__unstashed__", label: "默认" },     // Default: exclude hidden accounts
+      { value: "all", label: "全部账户" },           // Show everything including hidden
+      { value: "__stashed__", label: "已隐藏" },     // Show only hidden accounts
     ];
     if (!accountData?.accounts) return options;
 
@@ -661,8 +662,11 @@ export const useAccountManagement = () => {
       }
       // 标签过滤
       if (tagFilter === "__unstashed__") {
-        // Default filter: exclude stashed accounts
+        // Default filter: exclude hidden accounts
         if (account.tags?.includes(STASH_TAG)) return false;
+      } else if (tagFilter === "__stashed__") {
+        // Show only hidden accounts
+        if (!account.tags?.includes(STASH_TAG)) return false;
       } else if (tagFilter !== "all") {
         if (tagFilter === "__untagged__") {
           // Show only accounts without tags (or only with stashed tag)
@@ -673,7 +677,7 @@ export const useAccountManagement = () => {
           if (!account.tags || !account.tags.includes(tagFilter)) return false;
         }
       }
-      // When "all" is selected, show everything including stashed
+      // When "all" is selected, show everything including hidden
       return true;
     });
 
