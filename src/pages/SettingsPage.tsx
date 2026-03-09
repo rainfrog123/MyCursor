@@ -114,6 +114,64 @@ const SettingsPage = () => {
         </div>
       </Card>
 
+      {/* 导入格式说明 */}
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+          <Icon name="import" size={20} />
+          账户导入格式
+        </h3>
+        <div className="space-y-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          <p>支持以下 JSON 格式导入账户：</p>
+          
+          <div className="space-y-3">
+            <div>
+              <p className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>1. 仅 WorkOS Token（推荐）</p>
+              <pre className="p-3 rounded-lg text-xs overflow-x-auto" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+{`[
+  { "workos_session_token": "token1" },
+  { "workos_session_token": "token2" }
+]`}
+              </pre>
+              <p className="text-xs mt-2 flex items-start gap-1">
+                <Icon name="info" size={14} color="#3b82f6" />
+                自动获取邮箱和 AccessToken，账户导入后即可使用
+              </p>
+            </div>
+
+            <div>
+              <p className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>2. WorkOS Token + 邮箱</p>
+              <pre className="p-3 rounded-lg text-xs overflow-x-auto" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+{`[
+  { "email": "user@example.com", "workos_session_token": "token1" }
+]`}
+              </pre>
+              <p className="text-xs mt-2 flex items-start gap-1">
+                <Icon name="info" size={14} color="#3b82f6" />
+                自动获取 AccessToken
+              </p>
+            </div>
+
+            <div>
+              <p className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>3. 完整格式</p>
+              <pre className="p-3 rounded-lg text-xs overflow-x-auto" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+{`[
+  {
+    "email": "user@example.com",
+    "access_token": "...",
+    "refresh_token": "...",
+    "workos_session_token": "..."
+  }
+]`}
+              </pre>
+              <p className="text-xs mt-2 flex items-start gap-1">
+                <Icon name="info" size={14} color="#3b82f6" />
+                直接导入，速度最快
+              </p>
+            </div>
+          </div>
+        </div>
+      </Card>
+
       {/* 数据说明 */}
       <Card className="p-6">
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>

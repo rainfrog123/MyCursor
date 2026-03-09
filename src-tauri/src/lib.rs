@@ -1051,18 +1051,271 @@ async fn export_accounts(export_path: String, selected_emails: Option<Vec<String
     }
 }
 
+/// Internal helper: Get access token from WorkOS session token using PKCE flow
+async fn get_access_token_from_workos(workos_token: &str) -> Option<(String, Option<String>)> {
+    use sha2::{Sha256, Digest};
+    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+    
+    let client = get_http_client();
+    
+    // Generate PKCE values
+    let verifier_bytes: [u8; 32] = rand::random();
+    let verifier = URL_SAFE_NO_PAD.encode(&verifier_bytes);
+    
+    let mut hasher = Sha256::new();
+    hasher.update(verifier.as_bytes());
+    let challenge_bytes = hasher.finalize();
+    let challenge = URL_SAFE_NO_PAD.encode(&challenge_bytes);
+    
+    let uuid = uuid::Uuid::new_v4().to_string();
+    
+    log_info!("🔐 PKCE flow for WorkOS token: uuid={}", uuid);
+    
+    // Step 1: Call loginDeepCallbackControl
+    let cookie_value = format!("WorkosCursorSessionToken={}", workos_token);
+    let payload = serde_json::json!({
+        "challenge": challenge,
+        "uuid": uuid,
+    });
+    
+    let auth_result = client
+        .post("https://cursor.com/api/auth/loginDeepCallbackControl")
+        .header("Cookie", &cookie_value)
+        .json(&payload)
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await;
+    
+    if let Err(e) = auth_result {
+        log_error!("❌ PKCE step 1 failed: {}", e);
+        return None;
+    }
+    
+    let auth_response = auth_result.unwrap();
+    if !auth_response.status().is_success() {
+        log_error!("❌ PKCE step 1 HTTP error: {}", auth_response.status());
+        return None;
+    }
+    
+    // Step 2: Poll for result
+    let poll_url = format!(
+        "https://api2.cursor.sh/auth/poll?uuid={}&verifier={}",
+        uuid, verifier
+    );
+    
+    let poll_result = client
+        .get(&poll_url)
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await;
+    
+    if let Err(e) = poll_result {
+        log_error!("❌ PKCE step 2 failed: {}", e);
+        return None;
+    }
+    
+    let poll_response = poll_result.unwrap();
+    if !poll_response.status().is_success() {
+        log_error!("❌ PKCE step 2 HTTP error: {}", poll_response.status());
+        return None;
+    }
+    
+    let body = match poll_response.text().await {
+        Ok(b) => b,
+        Err(e) => {
+            log_error!("❌ PKCE read body failed: {}", e);
+            return None;
+        }
+    };
+    
+    let data: serde_json::Value = match serde_json::from_str(&body) {
+        Ok(d) => d,
+        Err(e) => {
+            log_error!("❌ PKCE parse JSON failed: {}", e);
+            return None;
+        }
+    };
+    
+    let access_token = data.get("accessToken").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let refresh_token = data.get("refreshToken").and_then(|v| v.as_str()).map(|s| s.to_string());
+    
+    if let Some(ref at) = access_token {
+        log_info!("✅ PKCE success: got accessToken ({}...)", &at[..at.len().min(20)]);
+        Some((at.clone(), refresh_token))
+    } else {
+        log_error!("❌ PKCE: no accessToken in response");
+        None
+    }
+}
+
 #[tauri::command]
 async fn import_accounts(import_file_path: String) -> Result<serde_json::Value, String> {
-    match AccountManager::import_accounts(import_file_path) {
-        Ok(message) => Ok(serde_json::json!({
-            "success": true,
-            "message": message
+    // Read and parse the JSON file
+    let content = match std::fs::read_to_string(&import_file_path) {
+        Ok(c) => c,
+        Err(e) => return Ok(serde_json::json!({
+            "success": false,
+            "message": format!("读取文件失败: {}", e)
         })),
-        Err(e) => Ok(serde_json::json!({
+    };
+    
+    let accounts: Vec<serde_json::Value> = match serde_json::from_str(&content) {
+        Ok(a) => a,
+        Err(e) => return Ok(serde_json::json!({
+            "success": false,
+            "message": format!("解析JSON失败: {}", e)
+        })),
+    };
+    
+    // Check if any accounts need processing (missing email or access_token but have workos_token)
+    let mut needs_lookup = false;
+    for account in &accounts {
+        let email = account.get("email").and_then(|v| v.as_str()).unwrap_or("");
+        let access_token = account.get("access_token").and_then(|v| v.as_str()).unwrap_or("");
+        let workos_token = account.get("workos_session_token").and_then(|v| v.as_str()).unwrap_or("");
+        if !workos_token.is_empty() && (email.is_empty() || access_token.is_empty()) {
+            needs_lookup = true;
+            break;
+        }
+    }
+    
+    // If no lookup needed, use original import path
+    if !needs_lookup {
+        match AccountManager::import_accounts(import_file_path) {
+            Ok(message) => return Ok(serde_json::json!({
+                "success": true,
+                "message": message
+            })),
+            Err(e) => return Ok(serde_json::json!({
+                "success": false,
+                "message": format!("导入失败: {}", e)
+            })),
+        }
+    }
+    
+    // Process accounts that need email/token lookup
+    let client = get_http_client();
+    let mut processed_accounts: Vec<serde_json::Value> = Vec::new();
+    let mut lookup_count = 0;
+    let mut skip_count = 0;
+    let total = accounts.len();
+    
+    for (idx, account) in accounts.into_iter().enumerate() {
+        let email = account.get("email").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let access_token = account.get("access_token").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let workos_token = account.get("workos_session_token").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        
+        // If workos_session_token exists but email or access_token is missing
+        if !workos_token.is_empty() && (email.is_empty() || access_token.is_empty()) {
+            log_info!("📥 [{}/{}] Processing WorkOS token...", idx + 1, total);
+            
+            let mut new_account = account.clone();
+            let obj = match new_account.as_object_mut() {
+                Some(o) => o,
+                None => {
+                    skip_count += 1;
+                    continue;
+                }
+            };
+            
+            // Step 1: Get email from /api/auth/me if missing
+            if email.is_empty() {
+                let cookie_value = format!("WorkosCursorSessionToken={}", workos_token);
+                
+                if let Ok(response) = client
+                    .get("https://cursor.com/api/auth/me")
+                    .header("Cookie", &cookie_value)
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .timeout(std::time::Duration::from_secs(15))
+                    .send()
+                    .await
+                {
+                    if response.status().as_u16() == 200 {
+                        if let Ok(body) = response.text().await {
+                            if let Ok(data) = serde_json::from_str::<serde_json::Value>(&body) {
+                                if let Some(fetched_email) = data.get("email").and_then(|v| v.as_str()) {
+                                    obj.insert("email".to_string(), serde_json::json!(fetched_email));
+                                    log_info!("✅ Found email: {}", fetched_email);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Check if we got email
+                if obj.get("email").and_then(|v| v.as_str()).unwrap_or("").is_empty() {
+                    log_warn!("⚠️ Failed to fetch email, skipping");
+                    skip_count += 1;
+                    continue;
+                }
+            }
+            
+            // Step 2: Get access token via PKCE if missing
+            if access_token.is_empty() {
+                log_info!("🔐 Getting access token via PKCE...");
+                if let Some((at, rt)) = get_access_token_from_workos(&workos_token).await {
+                    obj.insert("access_token".to_string(), serde_json::json!(at));
+                    if let Some(refresh) = rt {
+                        obj.insert("refresh_token".to_string(), serde_json::json!(refresh));
+                    }
+                    log_info!("✅ Got access token");
+                } else {
+                    log_warn!("⚠️ Failed to get access token, account will need manual refresh");
+                }
+            }
+            
+            processed_accounts.push(new_account);
+            lookup_count += 1;
+            continue;
+        }
+        
+        processed_accounts.push(account);
+    }
+    
+    if processed_accounts.is_empty() {
+        return Ok(serde_json::json!({
+            "success": false,
+            "message": "没有有效的账户可导入"
+        }));
+    }
+    
+    // Write processed accounts to temp file and import
+    let temp_path = std::env::temp_dir().join("mycursor_import_temp.json");
+    let temp_content = match serde_json::to_string_pretty(&processed_accounts) {
+        Ok(c) => c,
+        Err(e) => return Ok(serde_json::json!({
+            "success": false,
+            "message": format!("序列化失败: {}", e)
+        })),
+    };
+    
+    if let Err(e) = std::fs::write(&temp_path, temp_content) {
+        return Ok(serde_json::json!({
+            "success": false,
+            "message": format!("写入临时文件失败: {}", e)
+        }));
+    }
+    
+    let result = match AccountManager::import_accounts(temp_path.to_string_lossy().to_string()) {
+        Ok(message) => {
+            let final_message = if lookup_count > 0 || skip_count > 0 {
+                format!("{} (自动处理 {} 个WorkOS token, 跳过 {} 个无效)", message, lookup_count, skip_count)
+            } else {
+                message
+            };
+            serde_json::json!({
+                "success": true,
+                "message": final_message
+            })
+        },
+        Err(e) => serde_json::json!({
             "success": false,
             "message": format!("导入失败: {}", e)
-        })),
-    }
+        }),
+    };
+    
+    let _ = std::fs::remove_file(&temp_path);
+    Ok(result)
 }
 
 #[tauri::command]
