@@ -586,17 +586,6 @@ export const useAccountManagement = () => {
     });
   }, []);
 
-  // 全选/取消全选
-  const toggleSelectAll = useCallback(() => {
-    if (!accountData?.accounts) return;
-    
-    if (selectedAccounts.size === accountData.accounts.length) {
-      setSelectedAccounts(new Set());
-    } else {
-      setSelectedAccounts(new Set(accountData.accounts.map((acc) => acc.email)));
-    }
-  }, [accountData, selectedAccounts.size]);
-
   // 动态生成订阅类型筛选选项
   const subscriptionFilterOptions = useMemo(() => {
     const options = [{ value: "all", label: "全部账户" }];
@@ -733,6 +722,34 @@ export const useAccountManagement = () => {
 
     return result;
   }, [accountData, subscriptionFilter, tagFilter, sortField, sortOrder]);
+
+  // 全选/取消全选 (只针对当前筛选后的可见账户)
+  const toggleSelectAll = useCallback(() => {
+    if (filteredAccounts.length === 0) return;
+    
+    // Check if all filtered accounts are selected
+    const allFilteredSelected = filteredAccounts.every(acc => selectedAccounts.has(acc.email));
+    
+    if (allFilteredSelected) {
+      // Deselect all filtered accounts
+      setSelectedAccounts(prev => {
+        const newSet = new Set(prev);
+        for (const acc of filteredAccounts) {
+          newSet.delete(acc.email);
+        }
+        return newSet;
+      });
+    } else {
+      // Select all filtered accounts
+      setSelectedAccounts(prev => {
+        const newSet = new Set(prev);
+        for (const acc of filteredAccounts) {
+          newSet.add(acc.email);
+        }
+        return newSet;
+      });
+    }
+  }, [filteredAccounts, selectedAccounts]);
 
   // 排序选项
   const sortOptions = useMemo(() => [

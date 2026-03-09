@@ -517,10 +517,9 @@ export const AccountManagePage: React.FC = () => {
   }, [filteredAccounts.length]);
 
   const isAllSelected = useMemo(() => {
-    return accountData?.accounts && 
-           selectedAccounts.size === accountData.accounts.length && 
-           accountData.accounts.length > 0;
-  }, [accountData, selectedAccounts.size]);
+    if (filteredAccounts.length === 0) return false;
+    return filteredAccounts.every(acc => selectedAccounts.has(acc.email));
+  }, [filteredAccounts, selectedAccounts]);
 
   // 处理隐藏账户
   const handleStashAccount = useCallback(async (email: string) => {
