@@ -14,17 +14,19 @@ use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVAT
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountInfo {
+    #[serde(default)]
     pub email: String,
-    #[serde(alias = "accessToken")]
+    #[serde(default, alias = "accessToken", alias = "access_token")]
     pub token: String,
-    #[serde(alias = "refreshToken")]
+    #[serde(default, alias = "refreshToken")]
     pub refresh_token: Option<String>,
-    #[serde(alias = "workosCursorSessionToken")]
+    #[serde(default, alias = "workosCursorSessionToken", alias = "workos_session_token")]
     pub workos_cursor_session_token: Option<String>,
     #[serde(default, alias = "isCurrent")]
     pub is_current: bool,
     #[serde(default = "default_created_at", alias = "createdAt")]
     pub created_at: String,
+    #[serde(default)]
     pub username: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,

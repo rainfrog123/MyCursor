@@ -74,19 +74,24 @@ function parseAccounts(jsonString: string): {
     }
 
     const accounts: AccountInfo[] = parsed.map((item, index) => {
-      // Support alternative field names: accessToken -> token
-      const token = item.token || item.accessToken;
-      const email = item.email;
+      // Support alternative field names
+      const token = item.token || item.accessToken || item.access_token || '';
+      const email = item.email || '';
+      const workosToken = item.workos_session_token || item.workos_cursor_session_token || item.workosCursorSessionToken || '';
       
-      if (!email || !token) {
-        throw new Error(`第 ${index + 1} 个账号缺少必需字段 (email 或 token/accessToken)`);
+      // Allow import if: (email + token) OR (workos_session_token only - will auto-fetch)
+      const hasEmailAndToken = email && token;
+      const hasWorkosToken = !!workosToken;
+      
+      if (!hasEmailAndToken && !hasWorkosToken) {
+        throw new Error(`第 ${index + 1} 个账号缺少必需字段 (需要 email+token 或 workos_session_token)`);
       }
 
       return {
         email: email,
         token: token,
         refresh_token: item.refresh_token || item.refreshToken || null,
-        workos_cursor_session_token: item.workos_cursor_session_token || item.workosCursorSessionToken || null,
+        workos_cursor_session_token: workosToken || null,
         is_current: item.is_current || item.isCurrent || false,
         created_at: item.created_at || item.createdAt || new Date().toISOString(),
         username: item.username || null,

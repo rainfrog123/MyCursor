@@ -1195,20 +1195,34 @@ async fn import_accounts(import_file_path: String) -> Result<serde_json::Value, 
         })),
     };
     
-    let accounts: Vec<serde_json::Value> = match serde_json::from_str(&content) {
+    // Support both array and single object formats
+    let accounts: Vec<serde_json::Value> = match serde_json::from_str::<Vec<serde_json::Value>>(&content) {
         Ok(a) => a,
-        Err(e) => return Ok(serde_json::json!({
-            "success": false,
-            "message": format!("解析JSON失败: {}", e)
-        })),
+        Err(_) => {
+            // Try parsing as single object
+            match serde_json::from_str::<serde_json::Value>(&content) {
+                Ok(obj) if obj.is_object() => vec![obj],
+                _ => return Ok(serde_json::json!({
+                    "success": false,
+                    "message": "解析JSON失败: 应为数组或对象"
+                })),
+            }
+        }
     };
     
     // Check if any accounts need processing (missing email or access_token but have workos_token)
     let mut needs_lookup = false;
     for account in &accounts {
         let email = account.get("email").and_then(|v| v.as_str()).unwrap_or("");
-        let access_token = account.get("access_token").and_then(|v| v.as_str()).unwrap_or("");
-        let workos_token = account.get("workos_session_token").and_then(|v| v.as_str()).unwrap_or("");
+        let access_token = account.get("access_token")
+            .or_else(|| account.get("token"))
+            .or_else(|| account.get("accessToken"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let workos_token = account.get("workos_session_token")
+            .or_else(|| account.get("workos_cursor_session_token"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
         if !workos_token.is_empty() && (email.is_empty() || access_token.is_empty()) {
             needs_lookup = true;
             break;
@@ -1238,8 +1252,17 @@ async fn import_accounts(import_file_path: String) -> Result<serde_json::Value, 
     
     for (idx, account) in accounts.into_iter().enumerate() {
         let email = account.get("email").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let access_token = account.get("access_token").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let workos_token = account.get("workos_session_token").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let access_token = account.get("access_token")
+            .or_else(|| account.get("token"))
+            .or_else(|| account.get("accessToken"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let workos_token = account.get("workos_session_token")
+            .or_else(|| account.get("workos_cursor_session_token"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         
         // If workos_session_token exists but email or access_token is missing
         if !workos_token.is_empty() && (email.is_empty() || access_token.is_empty()) {
