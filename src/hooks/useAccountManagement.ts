@@ -990,61 +990,107 @@ export const useAccountManagement = () => {
     }
   }, [accountData]);
 
-  // Batch stash selected accounts
+  // Batch stash selected accounts using single file operation
   const stashSelectedAccounts = useCallback(async () => {
     if (selectedAccounts.size === 0) {
       return { success: false, message: "没有选中的账户" };
     }
 
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const email of selectedAccounts) {
-      const result = await stashAccount(email);
-      if (result.success) {
-        successCount++;
-      } else {
-        failCount++;
+    try {
+      // Build batch updates: add STASH_TAG to each account's tags
+      const updates: Array<[string, string[]]> = [];
+      
+      for (const email of selectedAccounts) {
+        const account = accountData?.accounts.find(a => a.email === email);
+        if (account) {
+          const currentTags = account.tags || [];
+          if (!currentTags.includes(STASH_TAG)) {
+            updates.push([email, [...currentTags, STASH_TAG]]);
+          }
+        }
       }
+
+      if (updates.length === 0) {
+        setSelectedAccounts(new Set());
+        return { success: true, message: "所有选中账户已经是隐藏状态" };
+      }
+
+      const result = await AccountService.batchUpdateTags(updates);
+
+      if (result.success) {
+        // Update local state for all updated accounts
+        setAccountData((prevData) => {
+          if (!prevData?.accounts) return prevData;
+          const updatedAccounts = prevData.accounts.map((acc) => {
+            const update = updates.find(([email]) => email === acc.email);
+            if (update) {
+              return { ...acc, tags: update[1] };
+            }
+            return acc;
+          });
+          ConfigService.saveAccountCache(updatedAccounts);
+          return { ...prevData, accounts: updatedAccounts };
+        });
+      }
+
+      setSelectedAccounts(new Set());
+      return { success: result.success, message: result.message };
+    } catch (error) {
+      console.error("批量隐藏失败:", error);
+      return { success: false, message: `批量隐藏失败: ${error}` };
     }
+  }, [selectedAccounts, accountData]);
 
-    // Clear selection after batch operation
-    setSelectedAccounts(new Set());
-
-    if (failCount === 0) {
-      return { success: true, message: `已隐藏 ${successCount} 个账户` };
-    } else {
-      return { success: false, message: `隐藏完成: 成功 ${successCount} 个, 失败 ${failCount} 个` };
-    }
-  }, [selectedAccounts, stashAccount]);
-
-  // Batch unstash selected accounts
+  // Batch unstash selected accounts using single file operation
   const unstashSelectedAccounts = useCallback(async () => {
     if (selectedAccounts.size === 0) {
       return { success: false, message: "没有选中的账户" };
     }
 
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const email of selectedAccounts) {
-      const result = await unstashAccount(email);
-      if (result.success) {
-        successCount++;
-      } else {
-        failCount++;
+    try {
+      // Build batch updates: remove STASH_TAG from each account's tags
+      const updates: Array<[string, string[]]> = [];
+      
+      for (const email of selectedAccounts) {
+        const account = accountData?.accounts.find(a => a.email === email);
+        if (account) {
+          const currentTags = account.tags || [];
+          if (currentTags.includes(STASH_TAG)) {
+            updates.push([email, currentTags.filter(t => t !== STASH_TAG)]);
+          }
+        }
       }
-    }
 
-    // Clear selection after batch operation
-    setSelectedAccounts(new Set());
+      if (updates.length === 0) {
+        setSelectedAccounts(new Set());
+        return { success: true, message: "所有选中账户已经是显示状态" };
+      }
 
-    if (failCount === 0) {
-      return { success: true, message: `已显示 ${successCount} 个账户` };
-    } else {
-      return { success: false, message: `显示完成: 成功 ${successCount} 个, 失败 ${failCount} 个` };
+      const result = await AccountService.batchUpdateTags(updates);
+
+      if (result.success) {
+        // Update local state for all updated accounts
+        setAccountData((prevData) => {
+          if (!prevData?.accounts) return prevData;
+          const updatedAccounts = prevData.accounts.map((acc) => {
+            const update = updates.find(([email]) => email === acc.email);
+            if (update) {
+              return { ...acc, tags: update[1] };
+            }
+            return acc;
+          });
+          ConfigService.saveAccountCache(updatedAccounts);
+          return { ...prevData, accounts: updatedAccounts };
+        });
+      }
+
+      setSelectedAccounts(new Set());
+      return { success: result.success, message: result.message };
+    } catch (error) {
+      console.error("批量显示失败:", error);
+      return { success: false, message: `批量显示失败: ${error}` };
     }
-  }, [selectedAccounts, unstashAccount]);
+  }, [selectedAccounts, accountData]);
 
   return {
     accountData,

@@ -65,6 +65,13 @@ pub struct LogoutResult {
     pub details: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchUpdateResult {
+    pub success_count: usize,
+    pub fail_count: usize,
+    pub skipped_count: usize,
+}
+
 pub struct AccountManager;
 
 impl AccountManager {
@@ -1539,6 +1546,55 @@ impl AccountManager {
                 Err(anyhow!("Account not found"))
             }
         }
+    }
+
+    /// Batch update tags for multiple accounts in a single file read/write cycle
+    /// This avoids race conditions when updating multiple accounts sequentially
+    pub fn batch_update_tags(updates: Vec<(String, Vec<String>)>) -> Result<BatchUpdateResult> {
+        log_info!(
+            "🔍 [DEBUG] AccountManager::batch_update_tags called for {} accounts",
+            updates.len()
+        );
+
+        let mut accounts = Self::load_accounts()?;
+        let mut success_count = 0;
+        let mut fail_count = 0;
+        let mut skipped_count = 0;
+
+        for (email, new_tags) in updates {
+            if let Some(account) = accounts.iter_mut().find(|acc| acc.email == email) {
+                if account.tags == new_tags {
+                    skipped_count += 1;
+                    log_debug!("⏭️ [DEBUG] Skipped {} (tags unchanged)", email);
+                } else {
+                    account.tags = new_tags;
+                    success_count += 1;
+                    log_debug!("✅ [DEBUG] Updated tags for {}", email);
+                }
+            } else {
+                fail_count += 1;
+                log_error!("❌ [DEBUG] Account not found: {}", email);
+            }
+        }
+
+        if success_count > 0 {
+            Self::save_accounts(&accounts)?;
+            log_info!(
+                "✅ [DEBUG] Batch update completed: {} updated, {} skipped, {} failed",
+                success_count, skipped_count, fail_count
+            );
+        } else {
+            log_info!(
+                "ℹ️ [DEBUG] No changes to save: {} skipped, {} failed",
+                skipped_count, fail_count
+            );
+        }
+
+        Ok(BatchUpdateResult {
+            success_count,
+            fail_count,
+            skipped_count,
+        })
     }
 
     /// Remove an account

@@ -69,6 +69,14 @@ export interface EditAccountResult {
   message: string;
 }
 
+export interface BatchUpdateTagsResult {
+  success: boolean;
+  successCount: number;
+  failCount: number;
+  skippedCount: number;
+  message: string;
+}
+
 export interface RemoveAccountResult {
   success: boolean;
   message: string;

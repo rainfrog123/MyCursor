@@ -1018,6 +1018,42 @@ async fn edit_account(
 }
 
 #[tauri::command]
+async fn batch_update_tags(updates: Vec<(String, Vec<String>)>) -> Result<serde_json::Value, String> {
+    log_info!("🔍 batch_update_tags called for {} accounts", updates.len());
+
+    match AccountManager::batch_update_tags(updates) {
+        Ok(result) => {
+            log_info!(
+                "✅ Batch update completed: {} updated, {} skipped, {} failed",
+                result.success_count, result.skipped_count, result.fail_count
+            );
+            Ok(serde_json::json!({
+                "success": result.fail_count == 0,
+                "successCount": result.success_count,
+                "failCount": result.fail_count,
+                "skippedCount": result.skipped_count,
+                "message": if result.fail_count == 0 {
+                    format!("已更新 {} 个账户", result.success_count)
+                } else {
+                    format!("更新完成: 成功 {} 个, 跳过 {} 个, 失败 {} 个", 
+                        result.success_count, result.skipped_count, result.fail_count)
+                }
+            }))
+        }
+        Err(e) => {
+            log_error!("❌ Batch update failed: {}", e);
+            Ok(serde_json::json!({
+                "success": false,
+                "successCount": 0,
+                "failCount": 0,
+                "skippedCount": 0,
+                "message": format!("批量更新失败: {}", e)
+            }))
+        }
+    }
+}
+
+#[tauri::command]
 async fn remove_account(email: String) -> Result<serde_json::Value, String> {
     match AccountManager::remove_account(email.clone()) {
         Ok(()) => Ok(serde_json::json!({
@@ -3251,6 +3287,7 @@ pub fn run() {
             get_account_list,
             add_account,
             edit_account,
+            batch_update_tags,
             check_admin_privileges,
             switch_account,
             switch_account_with_token,

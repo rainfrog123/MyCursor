@@ -5,6 +5,7 @@ import type {
   SwitchAccountResult,
   AddAccountResult,
   EditAccountResult,
+  BatchUpdateTagsResult,
   RemoveAccountResult,
   LogoutResult,
   AuthMeResponse,
@@ -122,6 +123,13 @@ export class AccountService {
       newTags: newTags ?? null,
       newMachineIds: newMachineIds ?? null,
     });
+  }
+
+  /** 批量更新账户标签（单次文件读写，避免竞态条件） */
+  static async batchUpdateTags(
+    updates: Array<[string, string[]]>
+  ): Promise<BatchUpdateTagsResult> {
+    return await invoke<BatchUpdateTagsResult>("batch_update_tags", { updates });
   }
 
   /** 删除指定账户 */
