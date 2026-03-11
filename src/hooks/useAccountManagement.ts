@@ -789,19 +789,27 @@ export const useAccountManagement = () => {
   }, []);
 
   // 刷新所有账户的用量数据（从API获取）
-  const refreshAllAccountsUsage = useCallback(async () => {
+  const refreshAllAccountsUsage = useCallback(async (targetEmails?: string[]) => {
     if (!accountData?.accounts || accountData.accounts.length === 0) {
       return { success: false, message: "没有账户需要刷新用量" };
     }
 
-    const totalAccounts = accountData.accounts.length;
+    // If targetEmails provided, only refresh those accounts
+    const accounts = targetEmails 
+      ? accountData.accounts.filter(acc => targetEmails.includes(acc.email))
+      : accountData.accounts;
+    
+    if (accounts.length === 0) {
+      return { success: false, message: "没有找到匹配的账户" };
+    }
+
+    const totalAccounts = accounts.length;
     performanceMonitor.start('refreshAllAccountsUsage');
     console.log(`🚀 开始批量获取 ${totalAccounts} 个账户的用量数据...`);
 
     setRefreshProgress({ current: 0, total: totalAccounts, isRefreshing: true });
 
     try {
-      const accounts = accountData.accounts;
       let refreshedCount = 0;
       let successCount = 0;
       const updatedCostsMap = new Map<string, number>();

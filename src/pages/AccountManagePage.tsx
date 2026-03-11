@@ -511,9 +511,10 @@ export const AccountManagePage: React.FC = () => {
       return;
     }
     
-    // 然后刷新选中账户的用量数据
+    // 然后刷新选中账户的用量数据（只刷新选中的账户）
     setToast({ message: "订阅信息已刷新，正在获取用量数据...", type: "success" });
-    const usageResult = await refreshAllAccountsUsage();
+    const selectedEmails = Array.from(selectedAccounts);
+    const usageResult = await refreshAllAccountsUsage(selectedEmails);
     if (usageResult.success) {
       setToast({ message: `已刷新 ${selectedAccounts.size} 个账户的订阅和用量数据`, type: "success" });
     } else {
