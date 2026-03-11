@@ -1639,9 +1639,8 @@ impl AccountManager {
         // Filter accounts based on selection
         let accounts_to_export = if let Some(emails) = selected_emails {
             if emails.is_empty() {
-                // If empty list provided, export all
-                log_info!("🔍 [DEBUG] Empty email list provided, exporting all accounts");
-                all_accounts
+                // Empty list means no accounts selected - return error
+                return Err(anyhow!("No accounts selected for export"));
             } else {
                 // Export only selected accounts
                 log_info!("🔍 [DEBUG] Exporting {} selected accounts", emails.len());

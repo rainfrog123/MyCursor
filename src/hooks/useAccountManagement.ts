@@ -271,120 +271,6 @@ export const useAccountManagement = () => {
     }
   }, []);
 
-  // 刷新所有账户
-  const refreshAllAccounts = useCallback(async () => {
-    if (!accountData?.accounts || accountData.accounts.length === 0) {
-      return { success: false, message: "没有账户需要刷新" };
-    }
-
-    const totalAccounts = accountData.accounts.length;
-    performanceMonitor.start('refreshAllAccounts');
-    console.log(`🚀 开始批量刷新 ${totalAccounts} 个账户...`);
-    
-    setRefreshProgress({ current: 0, total: totalAccounts, isRefreshing: true });
-
-    try {
-      const { ConfigService } = await import("../services/configService");
-      const accounts = accountData.accounts;
-      let refreshedCount = 0;
-      let successCount = 0;
-      let tokenExpiredCount = 0;
-      let networkErrorCount = 0;
-      const updatedAccountsMap = new Map();
-
-      const BATCH_SIZE = concurrentLimit;
-      const batches: AccountInfo[][] = [];
-      
-      for (let i = 0; i < accounts.length; i += BATCH_SIZE) {
-        batches.push(accounts.slice(i, i + BATCH_SIZE));
-      }
-
-      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-        const batch = batches[batchIndex];
-        performanceMonitor.start(`refreshBatch-${batchIndex}`);
-        
-        const batchPromises = batch.map(async (account) => {
-          try {
-            const authResult = await ConfigService.refreshSingleAccountInfo(account.token);
-            if (authResult.success && authResult.user_info?.account_info) {
-              return {
-                email: account.email,
-                status: 'ok' as const,
-                data: {
-                  ...account,
-                  subscription_type: authResult.user_info.account_info.subscription_type,
-                  subscription_status: authResult.user_info.account_info.subscription_status,
-                  trial_days_remaining: authResult.user_info.account_info.trial_days_remaining,
-                },
-              };
-            }
-            const apiStatus = authResult.user_info?.api_status;
-            if (apiStatus === 401 || apiStatus === 403) {
-              return { email: account.email, status: 'token_expired' as const, data: { ...account, subscription_type: "token_expired" } };
-            }
-            return { email: account.email, status: 'network_error' as const, data: account };
-          } catch {
-            return { email: account.email, status: 'network_error' as const, data: account };
-          }
-        });
-
-        const batchResults = await Promise.allSettled(batchPromises);
-        
-        batchResults.forEach((result) => {
-          if (result.status === 'fulfilled' && result.value) {
-            const v = result.value;
-            updatedAccountsMap.set(v.email, v.data);
-            if (v.status === 'ok') successCount++;
-            else if (v.status === 'token_expired') tokenExpiredCount++;
-            else networkErrorCount++;
-          }
-          refreshedCount++;
-        });
-
-        const batchDuration = performanceMonitor.end(`refreshBatch-${batchIndex}`);
-        console.log(`📦 批次 ${batchIndex + 1}/${batches.length} 完成，耗时: ${batchDuration.toFixed(2)}ms`);
-
-        setRefreshProgress({ current: refreshedCount, total: totalAccounts, isRefreshing: true });
-
-        setAccountData((prevData) => {
-          if (!prevData?.accounts) return prevData;
-          const updatedAccounts = prevData.accounts.map((acc) => 
-            updatedAccountsMap.get(acc.email) || acc
-          );
-          return { ...prevData, accounts: updatedAccounts };
-        });
-
-        if (batchIndex < batches.length - 1) {
-          // Increased delay to avoid API rate limiting
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
-
-      const finalAccounts = accounts.map((acc) =>
-        updatedAccountsMap.get(acc.email) || acc
-      );
-      await ConfigService.saveAccountCache(finalAccounts);
-
-      const failCount = tokenExpiredCount + networkErrorCount;
-      const parts: string[] = [`成功 ${successCount}`];
-      if (tokenExpiredCount > 0) parts.push(`Token 失效 ${tokenExpiredCount}`);
-      if (networkErrorCount > 0) parts.push(`网络错误 ${networkErrorCount}`);
-      const message = `刷新完成: ${parts.join('，')}`;
-
-      return { success: failCount === 0, message };
-    } catch (error) {
-      console.error("刷新所有账户失败:", error);
-      return { success: false, message: `刷新异常: ${error}` };
-    } finally {
-      const totalDuration = performanceMonitor.end('refreshAllAccounts');
-      console.log(`✅ 批量刷新完成，总耗时: ${totalDuration.toFixed(2)}ms`);
-      
-      setTimeout(() => {
-        setRefreshProgress({ current: 0, total: 0, isRefreshing: false });
-      }, 1500);
-    }
-  }, [accountData, concurrentLimit]);
-
   // 添加账户到本地列表（不调用 API 获取订阅信息）
   const addAccountToList = useCallback(async (_email: string) => {
     try {
@@ -1118,7 +1004,6 @@ export const useAccountManagement = () => {
     refreshCurrentAccount,
     addAccountToList,
     refreshSingleAccount,
-    refreshAllAccounts,
     refreshAllAccountsUsage,
     removeAccount,
     removeSelectedAccounts,

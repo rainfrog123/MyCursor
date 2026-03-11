@@ -498,7 +498,7 @@ export const AccountManagePage: React.FC = () => {
   }, [addAccountToList, refreshSingleAccount, confirmDialog]);
 
   // 刷新选中的账户（订阅信息 + 用量数据）
-  const handleRefreshAll = useCallback(async () => {
+  const handleRefreshSelected = useCallback(async () => {
     if (selectedAccounts.size === 0) {
       setToast({ message: "请先选择要刷新的账户", type: "error" });
       return;
@@ -722,7 +722,7 @@ export const AccountManagePage: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={handleRefreshAll}
+                onClick={handleRefreshSelected}
                 disabled={refreshProgress.isRefreshing || selectedAccounts.size === 0}
                 style={getButtonStyle('success', refreshProgress.isRefreshing || selectedAccounts.size === 0)}
                 onMouseEnter={(e) => {
