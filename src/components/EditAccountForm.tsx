@@ -211,13 +211,16 @@ export const EditAccountForm = memo(({ isOpen, account, onSuccess, onCancel, onT
       }
     >
       <div className="space-y-4">
-        {/* 邮箱地址（可编辑） */}
-        <FormField label="邮箱地址">
-          <TextInput
-            type="email"
-            value={editEmail}
-            onChange={setEditEmail}
-            placeholder="设置账户邮箱地址"
+        {/* WorkOS Session Token - 最重要，放在最前面 */}
+        <FormField
+          label="WorkOS Session Token"
+          description="用于主页登录、取消订阅、绑卡等功能"
+        >
+          <TextareaInput
+            value={editWorkosSessionToken}
+            onChange={setEditWorkosSessionToken}
+            placeholder="更新 WorkOS Session Token"
+            rows={3}
           />
         </FormField>
 
@@ -251,16 +254,13 @@ export const EditAccountForm = memo(({ isOpen, account, onSuccess, onCancel, onT
           />
         </FormField>
 
-        {/* WorkOS Session Token */}
-        <FormField
-          label="WorkOS Session Token"
-          description="用于高级功能（如取消订阅、绑卡等）"
-        >
-          <TextareaInput
-            value={editWorkosSessionToken}
-            onChange={setEditWorkosSessionToken}
-            placeholder="更新 WorkOS Session Token"
-            rows={3}
+        {/* 邮箱地址（可编辑） */}
+        <FormField label="邮箱地址">
+          <TextInput
+            type="email"
+            value={editEmail}
+            onChange={setEditEmail}
+            placeholder="设置账户邮箱地址"
           />
         </FormField>
 
