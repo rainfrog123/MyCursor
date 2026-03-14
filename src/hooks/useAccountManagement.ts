@@ -31,6 +31,7 @@ export const useAccountManagement = () => {
     const limit = safeStorage.get<number>('refresh_concurrent_limit', 5, true);
     return limit !== null && limit >= 1 && limit <= 10 ? limit : 5;
   });
+  const [searchQuery, setSearchQuery] = useState("");
 
   // 从数据库读取当前账号，并更新 state 中的 current_account 和 is_current 标记
   const refreshCurrentAccount = useCallback(async () => {
@@ -613,33 +614,42 @@ export const useAccountManagement = () => {
     return result;
   }, [accountData, subscriptionFilter, tagFilter, sortField, sortOrder]);
 
-  // 全选/取消全选 (只针对当前筛选后的可见账户)
+  // 搜索过滤（邮箱、用户名、标签）
+  const searchFilteredAccounts = useMemo(() => {
+    if (!searchQuery.trim()) return filteredAccounts;
+    const query = searchQuery.toLowerCase();
+    return filteredAccounts.filter(
+      (acc) =>
+        acc.email.toLowerCase().includes(query) ||
+        acc.username?.toLowerCase().includes(query) ||
+        acc.tags?.some((tag) => tag.toLowerCase().includes(query))
+    );
+  }, [filteredAccounts, searchQuery]);
+
+  // 全选/取消全选 (只针对当前筛选+搜索后的可见账户)
   const toggleSelectAll = useCallback(() => {
-    if (filteredAccounts.length === 0) return;
+    if (searchFilteredAccounts.length === 0) return;
     
-    // Check if all filtered accounts are selected
-    const allFilteredSelected = filteredAccounts.every(acc => selectedAccounts.has(acc.email));
+    const allFilteredSelected = searchFilteredAccounts.every(acc => selectedAccounts.has(acc.email));
     
     if (allFilteredSelected) {
-      // Deselect all filtered accounts
       setSelectedAccounts(prev => {
         const newSet = new Set(prev);
-        for (const acc of filteredAccounts) {
+        for (const acc of searchFilteredAccounts) {
           newSet.delete(acc.email);
         }
         return newSet;
       });
     } else {
-      // Select all filtered accounts
       setSelectedAccounts(prev => {
         const newSet = new Set(prev);
-        for (const acc of filteredAccounts) {
+        for (const acc of searchFilteredAccounts) {
           newSet.add(acc.email);
         }
         return newSet;
       });
     }
-  }, [filteredAccounts, selectedAccounts]);
+  }, [searchFilteredAccounts, selectedAccounts]);
 
   // 排序选项
   const sortOptions = useMemo(() => [
@@ -994,6 +1004,9 @@ export const useAccountManagement = () => {
     refreshProgress,
     concurrentLimit,
     filteredAccounts,
+    searchQuery,
+    setSearchQuery,
+    searchFilteredAccounts,
     subscriptionFilterOptions,
     tagFilter,
     tagFilterOptions,

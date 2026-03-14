@@ -52,6 +52,7 @@ coverage/
 *.tsbuildinfo
 
 # User data and sensitive information
+private/
 cursor_data/
 *.db
 *.sqlite

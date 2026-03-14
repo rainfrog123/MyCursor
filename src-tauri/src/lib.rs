@@ -3418,10 +3418,15 @@ struct UsageCache {
 }
 
 /// 获取数据目录
+/// - 若设置环境变量 MYCURSOR_DATA_DIR，则使用该路径（开发测试用）
 /// - Windows: exe 同级的 cursor_data/
 /// - macOS/Linux: ~/.cursor_data/
 pub fn get_data_dir() -> Result<PathBuf, String> {
-    let data_dir = if cfg!(target_os = "windows") {
+    let data_dir = if let Ok(custom) = std::env::var("MYCURSOR_DATA_DIR") {
+        // 不要在这里调用 log，因为 logger 会调用 get_data_dir 导致无限递归
+        eprintln!("[DEBUG] 使用自定义数据目录: {}", custom);
+        PathBuf::from(custom)
+    } else if cfg!(target_os = "windows") {
         get_app_dir()?.join("cursor_data")
     } else {
         dirs::home_dir()

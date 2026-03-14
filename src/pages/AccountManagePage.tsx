@@ -47,6 +47,9 @@ export const AccountManagePage: React.FC = () => {
     refreshProgress,
     concurrentLimit,
     filteredAccounts,
+    searchQuery,
+    setSearchQuery,
+    searchFilteredAccounts,
     subscriptionFilterOptions,
     tagFilter,
     tagFilterOptions,
@@ -547,13 +550,13 @@ export const AccountManagePage: React.FC = () => {
 
   // 使用 useMemo 优化计算
   const shouldUseVirtualScroll = useMemo(() => {
-    return filteredAccounts.length > VIRTUAL_SCROLL_THRESHOLD;
-  }, [filteredAccounts.length]);
+    return searchFilteredAccounts.length > VIRTUAL_SCROLL_THRESHOLD;
+  }, [searchFilteredAccounts.length]);
 
   const isAllSelected = useMemo(() => {
-    if (filteredAccounts.length === 0) return false;
-    return filteredAccounts.every(acc => selectedAccounts.has(acc.email));
-  }, [filteredAccounts, selectedAccounts]);
+    if (searchFilteredAccounts.length === 0) return false;
+    return searchFilteredAccounts.every(acc => selectedAccounts.has(acc.email));
+  }, [searchFilteredAccounts, selectedAccounts]);
 
   // 批量隐藏选中账户
   const handleStashSelected = useCallback(async () => {
@@ -842,8 +845,72 @@ export const AccountManagePage: React.FC = () => {
               </button>
             </div>
 
-            {/* 第二行：筛选器和设置 */}
+            {/* 第二行：搜索、筛选器和设置 */}
             <div className="flex flex-wrap items-center gap-2">
+              <div className="relative" style={{ minWidth: '180px', flex: '1 1 180px', maxWidth: '320px' }}>
+                <Icon
+                  name="search"
+                  size={14}
+                  style={{
+                    position: 'absolute',
+                    left: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--text-tertiary)',
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="搜索邮箱、用户名或标签..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '6px 28px 6px 32px',
+                    fontSize: '13px',
+                    backgroundColor: 'var(--bg-primary)',
+                    color: 'var(--text-primary)',
+                    border: '1px solid var(--border-primary)',
+                    borderRadius: 'var(--border-radius)',
+                    transition: 'all var(--transition-duration) ease',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.outline = 'none';
+                    e.currentTarget.style.borderColor = 'var(--primary-color)';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(74, 137, 220, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border-primary)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    style={{
+                      position: 'absolute',
+                      right: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      padding: '2px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--text-tertiary)',
+                      borderRadius: '4px',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <Icon name="close" size={12} />
+                  </button>
+                )}
+              </div>
               <Dropdown
                 options={subscriptionFilterOptions}
                 value={subscriptionFilter}
@@ -998,10 +1065,11 @@ export const AccountManagePage: React.FC = () => {
             </div>
             {accountData?.accounts && accountData.accounts.length > 0 && (
               <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                {subscriptionFilter === "all" 
+                {subscriptionFilter === "all" && !searchQuery
                   ? `共 ${accountData.accounts.length} 个账户`
-                  : `显示 ${filteredAccounts.length} / ${accountData.accounts.length} 个账户`
+                  : `显示 ${searchFilteredAccounts.length} / ${accountData.accounts.length} 个账户`
                 }
+                {searchQuery && ` (搜索结果)`}
               </span>
             )}
           </div>
@@ -1010,7 +1078,7 @@ export const AccountManagePage: React.FC = () => {
           {accountData?.accounts && accountData.accounts.length > 0 ? (
             shouldUseVirtualScroll ? (
               <VirtualizedAccountList
-                accounts={filteredAccounts}
+                accounts={searchFilteredAccounts}
                 renderItem={renderAccountCard}
                 height={600}
                 itemSize={60} // ✅ 紧凑布局：减小行高
@@ -1019,7 +1087,7 @@ export const AccountManagePage: React.FC = () => {
               />
             ) : (
               <div className="space-y-2" style={{ overflow: 'visible' }}>
-                {filteredAccounts.map((account, index) => renderAccountCard(account, index))}
+                {searchFilteredAccounts.map((account, index) => renderAccountCard(account, index))}
               </div>
             )
           ) : (
