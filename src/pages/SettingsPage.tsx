@@ -125,7 +125,7 @@ const SettingsPage = () => {
           
           <div className="space-y-3">
             <div>
-              <p className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>1. 仅 WorkOS Token（推荐）</p>
+              <p className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>1. 仅 Workos Token（推荐）</p>
               <pre className="p-3 rounded-lg text-xs overflow-x-auto" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
 {`[
   { "workos_session_token": "token1" },
@@ -139,7 +139,7 @@ const SettingsPage = () => {
             </div>
 
             <div>
-              <p className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>2. WorkOS Token + 邮箱</p>
+              <p className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>2. Workos Token + 邮箱</p>
               <pre className="p-3 rounded-lg text-xs overflow-x-auto" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
 {`[
   { "email": "user@example.com", "workos_session_token": "token1" }

@@ -21,6 +21,7 @@ export const EditAccountForm = memo(({ isOpen, account, onSuccess, onCancel, onT
   const [editToken, setEditToken] = useState("");
   const [editRefreshToken, setEditRefreshToken] = useState("");
   const [editWorkosSessionToken, setEditWorkosSessionToken] = useState("");
+  const [editStripeUrl, setEditStripeUrl] = useState("");
   const [editUsername, setEditUsername] = useState("");
   const [editTags, setEditTags] = useState<string[]>([]);
   const [showMachineIds, setShowMachineIds] = useState(false);
@@ -34,6 +35,7 @@ export const EditAccountForm = memo(({ isOpen, account, onSuccess, onCancel, onT
       setEditToken(account.token || "");
       setEditRefreshToken(account.refresh_token || "");
       setEditWorkosSessionToken(account.workos_cursor_session_token || "");
+      setEditStripeUrl(account.stripe_url || "");
       setEditUsername(account.username || "");
       setEditTags(account.tags || []);
       setShowMachineIds(!!account.machine_ids);
@@ -117,6 +119,7 @@ export const EditAccountForm = memo(({ isOpen, account, onSuccess, onCancel, onT
         editToken || undefined,
         editRefreshToken || undefined,
         editWorkosSessionToken || undefined,
+        editStripeUrl || undefined,
         editUsername || undefined,
         editTags,
         machineIdsToSave
@@ -138,6 +141,7 @@ export const EditAccountForm = memo(({ isOpen, account, onSuccess, onCancel, onT
     editToken,
     editRefreshToken,
     editWorkosSessionToken,
+    editStripeUrl,
     editUsername,
     editTags,
     showMachineIds,
@@ -211,16 +215,13 @@ export const EditAccountForm = memo(({ isOpen, account, onSuccess, onCancel, onT
       }
     >
       <div className="space-y-4">
-        {/* WorkOS Session Token - 最重要，放在最前面 */}
-        <FormField
-          label="WorkOS Session Token"
-          description="用于主页登录、取消订阅、绑卡等功能"
-        >
-          <TextareaInput
-            value={editWorkosSessionToken}
-            onChange={setEditWorkosSessionToken}
-            placeholder="更新 WorkOS Session Token"
-            rows={3}
+        {/* 邮箱地址 */}
+        <FormField label="邮箱地址">
+          <TextInput
+            type="email"
+            value={editEmail}
+            onChange={setEditEmail}
+            placeholder="设置账户邮箱地址"
           />
         </FormField>
 
@@ -231,6 +232,29 @@ export const EditAccountForm = memo(({ isOpen, account, onSuccess, onCancel, onT
             value={editUsername}
             onChange={setEditUsername}
             placeholder="设置用户名备注"
+          />
+        </FormField>
+
+        {/* Workos Session Token */}
+        <FormField
+          label="Workos Session Token"
+          description="用于主页登录、取消订阅、绑卡等功能"
+        >
+          <TextareaInput
+            value={editWorkosSessionToken}
+            onChange={setEditWorkosSessionToken}
+            placeholder="更新 Workos Session Token"
+            rows={3}
+          />
+        </FormField>
+
+        {/* Stripe URL */}
+        <FormField label="Stripe URL" description="Stripe 支付链接（可选）">
+          <TextInput
+            type="text"
+            value={editStripeUrl}
+            onChange={setEditStripeUrl}
+            placeholder="https://checkout.stripe.com/..."
           />
         </FormField>
 
@@ -251,16 +275,6 @@ export const EditAccountForm = memo(({ isOpen, account, onSuccess, onCancel, onT
             onChange={setEditRefreshToken}
             placeholder="更新 Refresh Token"
             rows={3}
-          />
-        </FormField>
-
-        {/* 邮箱地址（可编辑） */}
-        <FormField label="邮箱地址">
-          <TextInput
-            type="email"
-            value={editEmail}
-            onChange={setEditEmail}
-            placeholder="设置账户邮箱地址"
           />
         </FormField>
 

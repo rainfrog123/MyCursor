@@ -420,7 +420,7 @@ export const AccountCard = memo(({
               刷新
             </button>
 
-            {/* 主页按钮（仅当有WorkOS Session Token时显示） */}
+            {/* 主页按钮（仅当有Workos Session Token时显示） */}
             {account.workos_cursor_session_token && (
               <button
                 type="button"

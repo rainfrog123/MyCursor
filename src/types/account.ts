@@ -16,6 +16,7 @@ export interface AccountInfo {
   token: string;
   refresh_token?: string;
   workos_cursor_session_token?: string;
+  stripe_url?: string;
   is_current: boolean;
   created_at: string;
   username?: string;

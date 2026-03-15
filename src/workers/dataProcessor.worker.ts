@@ -45,6 +45,7 @@ interface AccountInfo {
   token: string;
   refresh_token?: string | null;
   workos_cursor_session_token?: string | null;
+  stripe_url?: string | null;
   is_current?: boolean;
   created_at?: string;
   username?: string | null;

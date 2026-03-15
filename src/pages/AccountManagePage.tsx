@@ -318,7 +318,7 @@ export const AccountManagePage: React.FC = () => {
   const handleViewDashboard = useCallback(async (account: AccountInfo) => {
     if (!account.workos_cursor_session_token) {
       setToast({
-        message: "该账户没有WorkOS Session Token，无法查看主页",
+        message: "该账户没有Workos Session Token，无法查看主页",
         type: "error",
       });
       return;
@@ -847,65 +847,22 @@ export const AccountManagePage: React.FC = () => {
 
             {/* 第二行：搜索、筛选器和设置 */}
             <div className="flex flex-wrap items-center gap-2">
-              <div className="relative" style={{ minWidth: '180px', flex: '1 1 180px', maxWidth: '320px' }}>
-                <Icon
-                  name="search"
-                  size={14}
-                  style={{
-                    position: 'absolute',
-                    left: '10px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--text-tertiary)',
-                  }}
-                />
+              <div className="search-input-wrapper">
+                <Icon name="search" size={14} className="search-input-icon" />
                 <input
                   type="text"
+                  className="search-input"
                   placeholder="搜索邮箱、用户名或标签..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '6px 28px 6px 32px',
-                    fontSize: '13px',
-                    backgroundColor: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    border: '1px solid var(--border-primary)',
-                    borderRadius: 'var(--border-radius)',
-                    transition: 'all var(--transition-duration) ease',
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.outline = 'none';
-                    e.currentTarget.style.borderColor = 'var(--primary-color)';
-                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(74, 137, 220, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--border-primary)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
+                  aria-label="搜索账户"
                 />
                 {searchQuery && (
                   <button
                     type="button"
+                    className="search-input-clear"
                     onClick={() => setSearchQuery('')}
-                    style={{
-                      position: 'absolute',
-                      right: '8px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      padding: '2px',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: 'var(--text-tertiary)',
-                      borderRadius: '4px',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
+                    aria-label="清除搜索"
                   >
                     <Icon name="close" size={12} />
                   </button>
@@ -976,13 +933,11 @@ export const AccountManagePage: React.FC = () => {
                 <input
                   type="number"
                   min="1"
-                  max="10"
                   value={concurrentLimit}
                   onChange={(e) => {
                     const value = parseInt(e.target.value, 10);
-                    if (value >= 1 && value <= 10) {
+                    if (value >= 1) {
                       setConcurrentLimit(value);
-                      // ✅ 使用安全包装器保存配置
                       safeStorage.set('refresh_concurrent_limit', value);
                     }
                   }}

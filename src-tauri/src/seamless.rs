@@ -1,7 +1,6 @@
 use crate::machine_id::MachineIdRestorer;
 use crate::{log_error, log_info, log_warn};
 use serde::{Deserialize, Serialize};
-use std::io::Read;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};

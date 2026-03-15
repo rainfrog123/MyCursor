@@ -470,7 +470,7 @@ async fn list_windows_users() -> Result<serde_json::Value, String> {
 
 /// 同步当前 Cursor 账号到目标 Windows 用户
 #[tauri::command]
-async fn sync_account_to_user(target_username: String) -> Result<serde_json::Value, String> {
+async fn sync_account_to_user(_target_username: String) -> Result<serde_json::Value, String> {
     #[cfg(not(target_os = "windows"))]
     {
         return Ok(serde_json::json!({ "success": false, "message": "仅支持 Windows" }));
@@ -984,6 +984,7 @@ async fn edit_account(
     new_token: Option<String>,
     new_refresh_token: Option<String>,
     new_workos_cursor_session_token: Option<String>,
+    new_stripe_url: Option<String>,
     new_username: Option<String>,
     new_tags: Option<Vec<String>>,
     new_machine_ids: Option<MachineIds>,
@@ -996,6 +997,7 @@ async fn edit_account(
         new_token,
         new_refresh_token,
         new_workos_cursor_session_token,
+        new_stripe_url,
         new_username,
         new_tags,
         new_machine_ids,

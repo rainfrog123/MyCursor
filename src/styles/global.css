@@ -233,6 +233,75 @@ select {
 }
 
 /* ========================================
+   搜索输入框组件
+   ======================================== */
+.search-input-wrapper {
+  position: relative;
+  min-width: 180px;
+  flex: 1 1 180px;
+  max-width: 320px;
+}
+
+.search-input-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: 6px 32px;
+  font-size: 13px;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--border-radius);
+  transition: border-color var(--transition-duration) ease,
+              box-shadow var(--transition-duration) ease;
+}
+
+.search-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(74, 137, 220, 0.1);
+}
+
+.search-input-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--transition-duration) ease,
+              color var(--transition-duration) ease;
+}
+
+.search-input-clear:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.search-input-clear:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 1px;
+}
+
+/* ========================================
    无障碍优化
    ======================================== */
 

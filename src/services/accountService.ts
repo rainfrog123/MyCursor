@@ -109,6 +109,7 @@ export class AccountService {
     newToken?: string,
     newRefreshToken?: string,
     newWorkosSessionToken?: string,
+    newStripeUrl?: string,
     newUsername?: string,
     newTags?: string[],
     newMachineIds?: any
@@ -119,6 +120,7 @@ export class AccountService {
       newToken: newToken || null,
       newRefreshToken: newRefreshToken || null,
       newWorkosCursorSessionToken: newWorkosSessionToken || null,
+      newStripeUrl: newStripeUrl || null,
       newUsername: newUsername || null,
       newTags: newTags ?? null,
       newMachineIds: newMachineIds ?? null,

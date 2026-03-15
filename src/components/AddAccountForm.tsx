@@ -127,7 +127,7 @@ export const AddAccountForm = memo(({ isOpen, onSuccess, onCancel, onToast }: Ad
   // 获取 AccessToken 并通过 /api/auth/me 自动填充邮箱
   const handleFetchAccessToken = useCallback(async () => {
     if (!newWorkosSessionToken.trim()) {
-      onToast("请先获取或输入 WorkOS Session Token", "error");
+      onToast("请先获取或输入 Workos Session Token", "error");
       return;
     }
 
@@ -329,9 +329,9 @@ export const AddAccountForm = memo(({ isOpen, onSuccess, onCancel, onToast }: Ad
       }
     >
       <div className="space-y-4">
-        {/* WorkOS Session Token + 两个操作按钮 */}
+        {/* Workos Session Token + 两个操作按钮 */}
         <FormField
-          label="WorkOS Session Token"
+          label="Workos Session Token"
           description="通过登录获取，或直接粘贴已有的 Session Token"
         >
           <TextareaInput

@@ -22,6 +22,8 @@ pub struct AccountInfo {
     pub refresh_token: Option<String>,
     #[serde(default, alias = "workosCursorSessionToken", alias = "workos_session_token")]
     pub workos_cursor_session_token: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stripe_url: Option<String>,
     #[serde(default, alias = "isCurrent")]
     pub is_current: bool,
     #[serde(default = "default_created_at", alias = "createdAt")]
@@ -274,6 +276,7 @@ impl AccountManager {
                     token,
                     refresh_token: existing.refresh_token.clone(),
                     workos_cursor_session_token: existing.workos_cursor_session_token.clone(),
+                    stripe_url: existing.stripe_url.clone(),
                     is_current: true,
                     created_at: existing.created_at.clone(),
                     username: existing.username.clone(),
@@ -297,6 +300,7 @@ impl AccountManager {
                     token,
                     refresh_token: None,
                     workos_cursor_session_token: None,
+                    stripe_url: None,
                     is_current: true,
                     created_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
                     username: None,
@@ -462,6 +466,7 @@ impl AccountManager {
             token,
             refresh_token,
             workos_cursor_session_token,
+            stripe_url: None,
             is_current: false,
             created_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             username: None,
@@ -1459,6 +1464,7 @@ impl AccountManager {
         new_token: Option<String>,
         new_refresh_token: Option<String>,
         new_workos_cursor_session_token: Option<String>,
+        new_stripe_url: Option<String>,
         new_username: Option<String>,
         new_tags: Option<Vec<String>>,
         new_machine_ids: Option<MachineIds>,
@@ -1521,6 +1527,14 @@ impl AccountManager {
                         workos_token.len()
                     );
                     acc.workos_cursor_session_token = Some(workos_token);
+                    updated = true;
+                }
+                if let Some(stripe_url) = new_stripe_url {
+                    log_info!(
+                        "🔍 [DEBUG] Updating stripe_url (length: {})",
+                        stripe_url.len()
+                    );
+                    acc.stripe_url = Some(stripe_url);
                     updated = true;
                 }
                 if let Some(username) = new_username {
