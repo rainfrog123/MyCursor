@@ -13,9 +13,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.0.0", features = [] }
 
 [dependencies]
-tauri = { version = "2.9.0", features = ["devtools"] }
-tauri-plugin-opener = "2.0.0"
-tauri-plugin-fs = "2.4.2"
+tauri = { version = "2.10", features = ["devtools"] }
+tauri-plugin-opener = "2.0"
+tauri-plugin-fs = "2.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
@@ -26,13 +26,13 @@ thiserror = "1.0"
 rand = "0.8"
 uuid = { version = "1.0", features = ["v4"] }
 sha2 = "0.10"
-regex = "1.11.2"
+regex = "1.11"
 reqwest = { version = "0.11", features = ["json", "gzip", "deflate", "brotli"] }
 base64 = "0.21"
 hex = "0.4"
 rusqlite = { version = "0.29", features = ["bundled"] }
-tauri-plugin-dialog = "2.4.0"
-tauri-plugin-single-instance = "2.0"
+tauri-plugin-dialog = "2.6"
+tauri-plugin-single-instance = "2.2"
 tiny_http = "0.12"
 
 [target.'cfg(windows)'.dependencies]
