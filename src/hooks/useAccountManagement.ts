@@ -829,6 +829,7 @@ export const useAccountManagement = () => {
         undefined, // newToken
         undefined, // newRefreshToken
         undefined, // newWorkosSessionToken
+        undefined, // newStripeUrl
         undefined, // newUsername
         newTags    // newTags
       );
@@ -871,6 +872,7 @@ export const useAccountManagement = () => {
         undefined, // newToken
         undefined, // newRefreshToken
         undefined, // newWorkosSessionToken
+        undefined, // newStripeUrl
         undefined, // newUsername
         newTags    // newTags
       );

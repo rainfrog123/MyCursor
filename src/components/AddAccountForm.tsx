@@ -244,7 +244,7 @@ export const AddAccountForm = memo(({ isOpen, onSuccess, onCancel, onToast }: Ad
 
       if (result.success) {
         if (showMachineIds && REQUIRED_MACHINE_ID_KEYS.every((k) => parsedMachineIds[k])) {
-          await AccountService.editAccount(newEmail, undefined, undefined, undefined, undefined, undefined, undefined, parsedMachineIds);
+          await AccountService.editAccount(newEmail, undefined, undefined, undefined, undefined, undefined, undefined, undefined, parsedMachineIds);
         }
         onToast(result.message || "账户添加成功", "success");
         onSuccess();

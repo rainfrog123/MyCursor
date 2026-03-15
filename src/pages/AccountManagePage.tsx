@@ -46,7 +46,6 @@ export const AccountManagePage: React.FC = () => {
     subscriptionFilter,
     refreshProgress,
     concurrentLimit,
-    filteredAccounts,
     searchQuery,
     setSearchQuery,
     searchFilteredAccounts,
